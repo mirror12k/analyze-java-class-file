@@ -65,27 +65,37 @@ class ClassFile(object):
 		self.mode = mode
 
 		self.handle = open(self.filepath, self.mode)
-		self.parse()
-	def parse(self):
-		header = self.unpackHeader()
-		self.header = header
-	def unpackHeader(self):
+		self.unpackClassFile()
+	def unpackClassFile(self):
 		data = self.handle.read(10)
 		header = {}
-		header['magic'], header['versionMajor'], header['versionMinor'], header['constCount'] = struct.unpack('>4sHHH', data)
+		header['magic'], header['version_minor'], header['version_major'], header['const_count'] = struct.unpack('>4sHHH', data)
 		
 		i = 1
 		constants = []
-		while i < header['constCount']:
+		while i < header['const_count']:
 			const = self.unpackConstant()
+			constants.append(const)
+			i += 1
 			if const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
 				# longs and doubles take up two constant slots
 				# because the guy that designed this format is an idiot
 				i += 1
-			constants.append(const)
-			i += 1
+				constants.append(None)
+				
 		header['constants'] = constants
-		return header
+
+		data = self.handle.read(8)
+		header['access_flags'], header['this_class'], header['super_class'], header['interface_count'] = struct.unpack('>HHHH', data)
+
+		header['interface_indexs'] = []
+		for _ in range(header['interface_count']):
+			data = self.handle.read(2)
+			index, = struct.unpack('>H', data)
+			header['interface_indexs'].append(index)
+
+		self.header = header
+
 	def unpackConstant(self):
 		data = self.handle.read(1)
 		tagType, = struct.unpack('B', data)
