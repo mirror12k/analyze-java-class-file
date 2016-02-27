@@ -59,15 +59,6 @@ class ClassFileConstant(object):
 		return s
 
 
-class ClassFileAttribute(object):
-	def __init__(self, nameIndex, data):
-		self.nameIndex = nameIndex
-		self.data = data
-		# self.tagName = constantTagNames[tagType]
-	def __str__(self):
-		return 'ClassFileAttribute(nameIndex='+str(self.nameIndex)+')'
-
-
 class ClassFileField(object):
 	def __init__(self, accessFlags, nameIndex, descriptorIndex, attributes):
 		self.accessFlags = accessFlags
@@ -93,14 +84,27 @@ class ClassFileMethod(object):
 			',attributes='+str(self.attributes)+')'
 
 
-class ClassFile(object):
-	def __init__(self, filepath, mode='rb'):
-		self.filepath = filepath
-		self.mode = mode
+class ClassFileAttribute(object):
+	def __init__(self, nameIndex, data):
+		self.nameIndex = nameIndex
+		self.data = data
+		# self.tagName = constantTagNames[tagType]
+	def __str__(self):
+		return 'ClassFileAttribute(nameIndex='+str(self.nameIndex)+')'
 
-		self.handle = open(self.filepath, self.mode)
+
+
+
+
+class ClassFile(object):
+	def __init__(self, filepath):
+		self.filepath = filepath
+
 		self.unpackClassFile()
+
 	def unpackClassFile(self):
+		self.handle = open(self.filepath, 'rb')
+
 		data = self.handle.read(10)
 		fileStructure = {}
 		fileStructure['magic'], fileStructure['version_minor'], fileStructure['version_major'], fileStructure['const_count'] = struct.unpack('>4sHHH', data)
@@ -143,6 +147,8 @@ class ClassFile(object):
 
 
 		self.fileStructure = fileStructure
+
+		self.handle.close()
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -209,6 +215,89 @@ class ClassFile(object):
 		attributeNameIndex, attributeLength = struct.unpack('>HI', data)
 		attributeData = self.handle.read(attributeLength)
 		return ClassFileAttribute(attributeNameIndex, attributeData)
+
+	def packClassFile(self):
+		self.handle = open(self.filepath, 'wb')
+
+		data = struct.pack('>4sHHH', self.fileStructure['magic'], self.fileStructure['version_minor'], self.fileStructure['version_major'], self.fileStructure['const_count'])
+		self.handle.write(data)
+		
+		for const in self.fileStructure['constants']:
+			if const is not None:
+				self.handle.write(self.packConstant(const))
+		
+		data = struct.pack('>HHHH', self.fileStructure['access_flags'], self.fileStructure['this_class'], self.fileStructure['super_class'], self.fileStructure['interface_count'])
+		self.handle.write(data)
+
+		for interface in self.fileStructure['interface_indexs']:
+			self.handle.write(struct.pack('>H', interface))
+
+		self.handle.write(struct.pack('>H', self.fileStructure['fields_count']))
+		for field in self.fileStructure['fields']:
+			self.handle.write(self.packField(field))
+
+		self.handle.write(struct.pack('>H', self.fileStructure['methods_count']))
+		for method in self.fileStructure['methods']:
+			self.handle.write(self.packMethod(method))
+
+		self.handle.write(struct.pack('>H', self.fileStructure['attributes_count']))
+		for attribute in self.fileStructure['attributes']:
+			self.handle.write(self.packAttribute(attribute))
+
+		self.handle.close()
+
+	def packConstant(self, const):
+		data = struct.pack('B', const.tagType)
+
+		# unpack some more data for the constant
+		if const.tagName == 'CONSTANT_Class':
+			data += struct.pack('>H', const.nameIndex)
+		elif const.tagName == 'CONSTANT_String':
+			data += struct.pack('>H', const.stringIndex)
+		elif const.tagName == 'CONSTANT_Utf8':
+			strdata = const.string.encode()
+			data += struct.pack('>H', len(strdata))
+			data += strdata
+		elif const.tagName == 'CONSTANT_Integer':
+			data += struct.pack('>i', const.value)
+		elif const.tagName == 'CONSTANT_Float':
+			data += struct.pack('>f', const.value)
+		elif const.tagName == 'CONSTANT_Long':
+			data += struct.pack('>q', const.value)
+		elif const.tagName == 'CONSTANT_Double':
+			data += struct.pack('>d', const.value)
+		elif const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_InterfaceMethodref':
+			data += struct.pack('>HH', const.classIndex, const.nameAndTypeIndex)
+		elif const.tagName == 'CONSTANT_NameAndType':
+			data += struct.pack('>HH', const.nameIndex, const.descriptorIndex)
+		elif const.tagName == 'CONSTANT_MethodHandle':
+			data += struct.pack('>BH', const.referenceKind, const.referenceIndex)
+		elif const.tagName == 'CONSTANT_MethodType':
+			data += struct.pack('>H', const.descriptorIndex)
+		elif const.tagName == 'CONSTANT_InvokeDynamic':
+			data += struct.pack('>HH', const.bootstrapIndex, const.nameAndTypeIndex)
+
+		return data
+
+	def packField(self, field):
+		data = struct.pack('>HHHH', field.accessFlags, field.nameIndex, field.descriptorIndex, len(field.attributes))
+		for attribute in field.attributes:
+			data += self.packAttribute(attribute)
+		return data
+
+	def packMethod(self, method):
+		data = struct.pack('>HHHH', method.accessFlags, method.nameIndex, method.descriptorIndex, len(method.attributes))
+		for attribute in method.attributes:
+			data += self.packAttribute(attribute)
+		return data
+
+
+	def packAttribute(self, attribute):
+		data = struct.pack('>HI', attribute.nameIndex, len(attribute.data))
+		data += attribute.data
+		return data
+
+
 
 
 def openFile(*args):
