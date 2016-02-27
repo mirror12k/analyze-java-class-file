@@ -4,6 +4,7 @@
 
 import sys
 import classfile
+import pprint
 
 
 
@@ -12,9 +13,15 @@ def main():
 		print("argument required")
 	else:
 		file = classfile.openFile(sys.argv[1])
-		print(file.header)
-		for const in file.header['constants']:
+		pprint.pprint(file.fileStructure)
+		for const in file.fileStructure['constants']:
 			print (const)
+		for field in file.fileStructure['fields']:
+			print (field)
+		for method in file.fileStructure['methods']:
+			print (method)
+		for attr in file.fileStructure['attributes']:
+			print (attr)
 
 
 if __name__ == '__main__':
