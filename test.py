@@ -13,7 +13,7 @@ def main():
 		print("argument required")
 	else:
 		file = classfile.openFile(sys.argv[1])
-		pprint.pprint(file.fileStructure)
+		# pprint.pprint(file.fileStructure)
 		print ("class constants:")
 		for const in file.fileStructure['constants']:
 			print (const)
@@ -30,7 +30,7 @@ def main():
 		for const in file.fileStructure['constants']:
 			if const.tagName == 'CONSTANT_Utf8' and const.string == 'helloworld!':
 				print ("found my const: ", const)
-				const.string = 'gameover!'
+				const.string = 'game over! try again next time!'
 				print("changed it to ", const)
 
 		file.packClassFile()

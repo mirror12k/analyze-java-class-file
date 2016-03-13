@@ -36,7 +36,7 @@ class ClassFileConstant(object):
 		self.referenceIndex = None
 		self.bootstrapIndex = None
 	def __str__(self):
-		s = 'ClassFileConstant<'+self.tagName+'>('
+		s = 'C<'+self.tagName+'>('
 		if self.nameIndex is not None:
 			s += 'nameIndex=' + str(self.nameIndex) + ','
 		if self.descriptorIndex is not None:
@@ -50,7 +50,7 @@ class ClassFileConstant(object):
 		if self.value is not None:
 			s += 'value=' + str(self.value) + ','
 		if self.string is not None:
-			s += 'string=' + str(self.string) + ','
+			s += 'string="' + str(self.string) + '",'
 		if self.referenceKind is not None:
 			s += 'referenceKind=' + str(self.referenceKind) + ','
 		if self.referenceIndex is not None:
@@ -58,6 +58,28 @@ class ClassFileConstant(object):
 		s += ')'
 		return s
 
+
+
+
+class StringConstant(object):
+	def __init__(self, string):
+		self.string = string
+	def __str__(self):
+		return "StringConstant('"+self.string+"')"
+
+class ClassConstant(object):
+	def __init__(self, className):
+		self.className = className
+	def __str__(self):
+		return "ClassConstant('"+self.className+"')"
+
+class MethodConstant(object):
+	def __init__(self, methodName, methodType, methodClass):
+		self.methodName = methodName
+		self.methodType = methodType
+		self.methodClass = methodClass
+	def __str__(self):
+		return "MethodConstant("+self.methodClass+" -> "+self.methodName+" : "+self.methodType+" )"
 
 class ClassFileField(object):
 	def __init__(self, accessFlags, nameIndex, descriptorIndex, attributes):
@@ -147,8 +169,72 @@ class ClassFile(object):
 
 
 		self.fileStructure = fileStructure
-
 		self.handle.close()
+
+		self.linkClassConstants()
+
+	def linkClassConstants(self):
+		consts = self.fileStructure['constants']
+		for const in consts:
+			if const.tagName == 'CONSTANT_Class':
+				const.nameIndex = consts[const.nameIndex - 1]
+				if const.nameIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
+			elif const.tagName == 'CONSTANT_String':
+				const.stringIndex = consts[const.stringIndex - 1]
+				if const.stringIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for stringIndex:'+const.stringIndex.tagName)
+			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
+				const.classIndex = consts[const.classIndex - 1]
+				if const.classIndex.tagName != 'CONSTANT_Class':
+					raise Exception('invalid constant type for classIndex:'+const.classIndex.tagName)
+				const.nameAndTypeIndex = consts[const.nameAndTypeIndex - 1]
+				if const.nameAndTypeIndex.tagName != 'CONSTANT_NameAndType':
+					raise Exception('invalid constant type for nameAndTypeIndex:'+const.nameAndTypeIndex.tagName)
+			elif const.tagName == 'CONSTANT_NameAndType':
+				const.nameIndex = consts[const.nameIndex - 1]
+				if const.nameIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
+				const.descriptorIndex = consts[const.descriptorIndex - 1]
+				if const.descriptorIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for descriptorIndex:'+const.descriptorIndex.tagName)
+			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
+				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
+				pass
+			else:
+				raise Exception ("unknown tag type: ", const.tagName)
+
+
+	def unlinkClassConstants(self):
+		consts = self.fileStructure['constants']
+		for const in consts:
+			if const.tagName == 'CONSTANT_Class':
+				if const.nameIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
+				const.nameIndex = consts.index(const.nameIndex) + 1
+			elif const.tagName == 'CONSTANT_String':
+				if const.stringIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for stringIndex:'+const.stringIndex.tagName)
+				const.stringIndex = consts.index(const.stringIndex) + 1
+			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
+				if const.classIndex.tagName != 'CONSTANT_Class':
+					raise Exception('invalid constant type for classIndex:'+const.classIndex.tagName)
+				const.classIndex = consts.index(const.classIndex) + 1
+				if const.nameAndTypeIndex.tagName != 'CONSTANT_NameAndType':
+					raise Exception('invalid constant type for nameAndTypeIndex:'+const.nameAndTypeIndex.tagName)
+				const.nameAndTypeIndex = consts.index(const.nameAndTypeIndex) + 1
+			elif const.tagName == 'CONSTANT_NameAndType':
+				if const.nameIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
+				const.nameIndex = consts.index(const.nameIndex) + 1
+				if const.descriptorIndex.tagName != 'CONSTANT_Utf8':
+					raise Exception('invalid constant type for descriptorIndex:'+const.descriptorIndex.tagName)
+				const.descriptorIndex = consts.index(const.descriptorIndex) + 1
+			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
+				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
+				pass
+			else:
+				raise Exception ("unknown tag type: ", const.tagName)
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -217,6 +303,8 @@ class ClassFile(object):
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
 	def packClassFile(self):
+		self.unlinkClassConstants()
+
 		self.handle = open(self.filepath, 'wb')
 
 		data = struct.pack('>4sHHH', self.fileStructure['magic'], self.fileStructure['version_minor'], self.fileStructure['version_major'], self.fileStructure['const_count'])
