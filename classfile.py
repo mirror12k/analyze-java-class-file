@@ -39,21 +39,21 @@ class ClassFileConstant(object):
 		s = 'ClassFileConstant<'+self.tagName+'>('
 		if self.nameIndex is not None:
 			s += 'nameIndex=' + str(self.nameIndex) + ','
-		elif self.descriptorIndex is not None:
+		if self.descriptorIndex is not None:
 			s += 'descriptorIndex=' + str(self.descriptorIndex) + ','
-		elif self.classIndex is not None:
+		if self.classIndex is not None:
 			s += 'classIndex=' + str(self.classIndex) + ','
-		elif self.nameAndTypeIndex is not None:
+		if self.nameAndTypeIndex is not None:
 			s += 'nameAndTypeIndex=' + str(self.nameAndTypeIndex) + ','
-		elif self.stringIndex is not None:
+		if self.stringIndex is not None:
 			s += 'stringIndex=' + str(self.stringIndex) + ','
-		elif self.value is not None:
+		if self.value is not None:
 			s += 'value=' + str(self.value) + ','
-		elif self.string is not None:
+		if self.string is not None:
 			s += 'string=' + str(self.string) + ','
-		elif self.referenceKind is not None:
+		if self.referenceKind is not None:
 			s += 'referenceKind=' + str(self.referenceKind) + ','
-		elif self.referenceIndex is not None:
+		if self.referenceIndex is not None:
 			s += 'referenceIndex=' + str(self.referenceIndex) + ','
 		s += ')'
 		return s
