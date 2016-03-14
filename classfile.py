@@ -193,48 +193,41 @@ class ClassFile(object):
 			flags.append('ACC_ENUM')
 		self.fileStructure['access_flags'] = flags
 
-		self.fileStructure['this_class'] = self.fileStructure['constants'][self.fileStructure['this_class'] - 1]
-		if self.fileStructure['this_class'].tagName != 'CONSTANT_Class':
-			raise Exception('invalid constant type for file.this_class:'+self.fileStructure['this_class'].tagName)
-		self.fileStructure['super_class'] = self.fileStructure['constants'][self.fileStructure['super_class'] - 1]
-		if self.fileStructure['super_class'].tagName != 'CONSTANT_Class':
-			raise Exception('invalid constant type for file.super_class:'+self.fileStructure['super_class'].tagName)
+		self.fileStructure['this_class'] = self.constantFromIndex(self.fileStructure['this_class'], 'CONSTANT_Class')
+		self.fileStructure['super_class'] = self.constantFromIndex(self.fileStructure['super_class'], 'CONSTANT_Class')
 
-		interfaces = []
-		for index in self.fileStructure['interfaces']:
-			const = self.fileStructure['constants'][index - 1]
-			if const.tagName != 'CONSTANT_Class':
-				raise Exception('invalid constant type for file.interface['+str(index)+']:'+const.tagName)
-			interfaces.append(const)
-		self.fileStructure['interfaces'] = interfaces
+		self.fileStructure['interfaces'] = [ self.constantFromIndex(index, 'CONSTANT_Class') for index in self.fileStructure['interfaces'] ]
 
 		self.linkClassConstants()
+
+
+	def constantFromIndex(self, index, constType='*'):
+		if index < 1 or index > len(self.fileStructure['constants']):
+			raise Exception('out-of-bounds constant index '+str(index)+' for constType "'+constType+'"')
+		const = self.fileStructure['constants'][index - 1]
+		if constType != '*' and const.tagName != constType:
+			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'"')
+		return const
+
+	def constantToIndex(self, const, constType='*'):
+		if constType != '*' and const.tagName != constType:
+			raise Exception('invalid constant type: "'+const.tagName+'" (expected "'+constType+'"')
+		index = self.fileStructure['constants'].index(const) + 1
+		return index
 
 	def linkClassConstants(self):
 		consts = self.fileStructure['constants']
 		for const in consts:
 			if const.tagName == 'CONSTANT_Class':
-				const.nameIndex = consts[const.nameIndex - 1]
-				if const.nameIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
+				const.nameIndex = self.constantFromIndex(const.nameIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_String':
-				const.stringIndex = consts[const.stringIndex - 1]
-				if const.stringIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for stringIndex:'+const.stringIndex.tagName)
+				const.stringIndex = self.constantFromIndex(const.stringIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
-				const.classIndex = consts[const.classIndex - 1]
-				if const.classIndex.tagName != 'CONSTANT_Class':
-					raise Exception('invalid constant type for classIndex:'+const.classIndex.tagName)
-				const.nameAndTypeIndex = consts[const.nameAndTypeIndex - 1]
-				if const.nameAndTypeIndex.tagName != 'CONSTANT_NameAndType':
-					raise Exception('invalid constant type for nameAndTypeIndex:'+const.nameAndTypeIndex.tagName)
+				const.classIndex = self.constantFromIndex(const.classIndex, 'CONSTANT_Class')
+				const.nameAndTypeIndex = self.constantFromIndex(const.nameAndTypeIndex, 'CONSTANT_NameAndType')
 			elif const.tagName == 'CONSTANT_NameAndType':
-				const.nameIndex = consts[const.nameIndex - 1]
-				if const.nameIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
-				const.descriptorIndex = consts[const.descriptorIndex - 1]
-				if const.descriptorIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for descriptorIndex:'+const.descriptorIndex.tagName)
+				const.nameIndex = self.constantFromIndex(const.nameIndex, 'CONSTANT_Utf8')
+				const.descriptorIndex = self.constantFromIndex(const.descriptorIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
 				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
 				pass
@@ -266,12 +259,8 @@ class ClassFile(object):
 				raise Exception('invalid flag for file.access_flags:'+flag)
 		self.fileStructure['access_flags'] = code
 
-		if self.fileStructure['this_class'].tagName != 'CONSTANT_Class':
-			raise Exception('invalid constant type for file.this_class:'+self.fileStructure['this_class'].tagName)
-		self.fileStructure['this_class'] = self.fileStructure['constants'].index(self.fileStructure['this_class']) + 1
-		if self.fileStructure['super_class'].tagName != 'CONSTANT_Class':
-			raise Exception('invalid constant type for file.super_class:'+self.fileStructure['super_class'].tagName)
-		self.fileStructure['super_class'] = self.fileStructure['constants'].index(self.fileStructure['super_class']) + 1
+		self.fileStructure['this_class'] = self.constantToIndex(self.fileStructure['this_class'], 'CONSTANT_Class')
+		self.fileStructure['super_class'] = self.constantToIndex(self.fileStructure['super_class'], 'CONSTANT_Class')
 
 		indexes = []
 		for interface in self.fileStructure['interfaces']:
@@ -287,27 +276,15 @@ class ClassFile(object):
 		consts = self.fileStructure['constants']
 		for const in consts:
 			if const.tagName == 'CONSTANT_Class':
-				if const.nameIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
-				const.nameIndex = consts.index(const.nameIndex) + 1
+				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_String':
-				if const.stringIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for stringIndex:'+const.stringIndex.tagName)
-				const.stringIndex = consts.index(const.stringIndex) + 1
+				const.stringIndex = self.constantToIndex(const.stringIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
-				if const.classIndex.tagName != 'CONSTANT_Class':
-					raise Exception('invalid constant type for classIndex:'+const.classIndex.tagName)
-				const.classIndex = consts.index(const.classIndex) + 1
-				if const.nameAndTypeIndex.tagName != 'CONSTANT_NameAndType':
-					raise Exception('invalid constant type for nameAndTypeIndex:'+const.nameAndTypeIndex.tagName)
-				const.nameAndTypeIndex = consts.index(const.nameAndTypeIndex) + 1
+				const.classIndex = self.constantToIndex(const.classIndex, 'CONSTANT_Class')
+				const.nameAndTypeIndex = self.constantToIndex(const.nameAndTypeIndex, 'CONSTANT_NameAndType')
 			elif const.tagName == 'CONSTANT_NameAndType':
-				if const.nameIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for nameIndex:'+const.nameIndex.tagName)
-				const.nameIndex = consts.index(const.nameIndex) + 1
-				if const.descriptorIndex.tagName != 'CONSTANT_Utf8':
-					raise Exception('invalid constant type for descriptorIndex:'+const.descriptorIndex.tagName)
-				const.descriptorIndex = consts.index(const.descriptorIndex) + 1
+				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
+				const.descriptorIndex = self.constantToIndex(const.descriptorIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
 				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
 				pass
