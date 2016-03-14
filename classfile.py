@@ -131,9 +131,8 @@ class ClassFile(object):
 		fileStructure = {}
 		fileStructure['magic'], fileStructure['version_minor'], fileStructure['version_major'], fileStructure['const_count'] = struct.unpack('>4sHHH', data)
 		
-		i = 1
 		constants = []
-		while i < fileStructure['const_count']:
+		for i in range(1, fileStructure['const_count']):
 			const = self.unpackConstant()
 			constants.append(const)
 			i += 1
@@ -148,11 +147,11 @@ class ClassFile(object):
 		data = self.handle.read(8)
 		fileStructure['access_flags'], fileStructure['this_class'], fileStructure['super_class'], fileStructure['interface_count'] = struct.unpack('>HHHH', data)
 
-		fileStructure['interface_indexs'] = []
+		fileStructure['interfaces'] = []
 		for _ in range(fileStructure['interface_count']):
 			data = self.handle.read(2)
 			index, = struct.unpack('>H', data)
-			fileStructure['interface_indexs'].append(index)
+			fileStructure['interfaces'].append(index)
 
 		data = self.handle.read(2)
 		fileStructure['fields_count'], = struct.unpack('>H', data)
@@ -170,6 +169,44 @@ class ClassFile(object):
 
 		self.fileStructure = fileStructure
 		self.handle.close()
+
+		self.linkClass()
+
+	def linkClass(self):
+		flags = []
+		code = self.fileStructure['access_flags']
+		if code & 0x0001:
+			flags.append('ACC_PUBLIC')
+		if code & 0x0010:
+			flags.append('ACC_FINAL')
+		if code & 0x0020:
+			flags.append('ACC_SUPER')
+		if code & 0x0200:
+			flags.append('ACC_INTERFACE')
+		if code & 0x0400:
+			flags.append('ACC_ABSTRACT')
+		if code & 0x1000:
+			flags.append('ACC_SYNTHETIC')
+		if code & 0x2000:
+			flags.append('ACC_ANNOTATION')
+		if code & 0x4000:
+			flags.append('ACC_ENUM')
+		self.fileStructure['access_flags'] = flags
+
+		self.fileStructure['this_class'] = self.fileStructure['constants'][self.fileStructure['this_class'] - 1]
+		if self.fileStructure['this_class'].tagName != 'CONSTANT_Class':
+			raise Exception('invalid constant type for file.this_class:'+self.fileStructure['this_class'].tagName)
+		self.fileStructure['super_class'] = self.fileStructure['constants'][self.fileStructure['super_class'] - 1]
+		if self.fileStructure['super_class'].tagName != 'CONSTANT_Class':
+			raise Exception('invalid constant type for file.super_class:'+self.fileStructure['super_class'].tagName)
+
+		interfaces = []
+		for index in self.fileStructure['interfaces']:
+			const = self.fileStructure['constants'][index - 1]
+			if const.tagName != 'CONSTANT_Class':
+				raise Exception('invalid constant type for file.interface['+str(index)+']:'+const.tagName)
+			interfaces.append(const)
+		self.fileStructure['interfaces'] = interfaces
 
 		self.linkClassConstants()
 
@@ -204,6 +241,47 @@ class ClassFile(object):
 			else:
 				raise Exception ("unknown tag type: ", const.tagName)
 
+
+	def unlinkClass(self):
+		flags = self.fileStructure['access_flags']
+		code = 0
+		for flag in flags:
+			if flag == 'ACC_PUBLIC':
+				code |= 0x0001
+			elif flag == 'ACC_FINAL':
+				code |= 0x0010
+			elif flag == 'ACC_SUPER':
+				code |= 0x0020
+			elif flag == 'ACC_INTERFACE':
+				code |= 0x0200
+			elif flag == 'ACC_ABSTRACT':
+				code |= 0x0400
+			elif flag == 'ACC_SYNTHETIC':
+				code |= 0x1000
+			elif flag == 'ACC_ANNOTATION':
+				code |= 0x2000
+			elif flag == 'ACC_ENUM':
+				code |= 0x4000
+			else:
+				raise Exception('invalid flag for file.access_flags:'+flag)
+		self.fileStructure['access_flags'] = code
+
+		if self.fileStructure['this_class'].tagName != 'CONSTANT_Class':
+			raise Exception('invalid constant type for file.this_class:'+self.fileStructure['this_class'].tagName)
+		self.fileStructure['this_class'] = self.fileStructure['constants'].index(self.fileStructure['this_class']) + 1
+		if self.fileStructure['super_class'].tagName != 'CONSTANT_Class':
+			raise Exception('invalid constant type for file.super_class:'+self.fileStructure['super_class'].tagName)
+		self.fileStructure['super_class'] = self.fileStructure['constants'].index(self.fileStructure['super_class']) + 1
+
+		indexes = []
+		for interface in self.fileStructure['interfaces']:
+			if interface.tagName != 'CONSTANT_Class':
+				raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
+			const = self.fileStructure['constants'][index - 1]
+			indexes.append(self.fileStructure['constants'].index(interface) + 1)
+		self.fileStructure['interfaces'] = indexes
+
+		self.unlinkClassConstants()
 
 	def unlinkClassConstants(self):
 		consts = self.fileStructure['constants']
@@ -303,7 +381,7 @@ class ClassFile(object):
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
 	def packClassFile(self):
-		self.unlinkClassConstants()
+		self.unlinkClass()
 
 		self.handle = open(self.filepath, 'wb')
 
@@ -317,7 +395,7 @@ class ClassFile(object):
 		data = struct.pack('>HHHH', self.fileStructure['access_flags'], self.fileStructure['this_class'], self.fileStructure['super_class'], self.fileStructure['interface_count'])
 		self.handle.write(data)
 
-		for interface in self.fileStructure['interface_indexs']:
+		for interface in self.fileStructure['interfaces']:
 			self.handle.write(struct.pack('>H', interface))
 
 		self.handle.write(struct.pack('>H', self.fileStructure['fields_count']))

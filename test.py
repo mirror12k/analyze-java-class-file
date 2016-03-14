@@ -13,7 +13,7 @@ def main():
 		print("argument required")
 	else:
 		file = classfile.openFile(sys.argv[1])
-		# pprint.pprint(file.fileStructure)
+		pprint.pprint(file.fileStructure)
 		print ("class constants:")
 		for const in file.fileStructure['constants']:
 			print (const)
