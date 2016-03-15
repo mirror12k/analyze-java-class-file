@@ -200,6 +200,34 @@ class ClassFile(object):
 
 		self.linkClassConstants()
 
+		for field in self.fileStructure['fields']:
+			self.linkField(field)
+
+	def linkField(self, field):
+		flags = []
+		code = field.accessFlags
+		if code & 0x0001: # Declared public; may be accessed from outside its package.
+			flags.append('ACC_PUBLIC')
+		if code & 0x0002: # Declared private; usable only within the defining class.
+			flags.append('ACC_PRIVATE')
+		if code & 0x0004: # Declared protected; may be accessed within subclasses.
+			flags.append('ACC_PROTECTED')
+		if code & 0x0008: # Declared static.
+			flags.append('ACC_STATIC')
+		if code & 0x0010: # Declared final; never directly assigned to after object construction
+			flags.append('ACC_FINAL')
+		if code & 0x0040: # Declared volatile; cannot be cached.
+			flags.append('ACC_VOLATILE')
+		if code & 0x0080: # Declared transient; not written or read by a persistent object manager.
+			flags.append('ACC_TRANSIENT')
+		if code & 0x1000: # Declared synthetic; not present in the source code.
+			flags.append('ACC_SYNTHETIC')
+		if code & 0x4000: # Declared as an element of an enum.
+			flags.append('ACC_ENUM')
+		field.accessFlags = flags
+		
+		field.nameIndex = self.constantFromIndex(field.nameIndex, 'CONSTANT_Utf8')
+		field.descriptorIndex = self.constantFromIndex(field.descriptorIndex, 'CONSTANT_Utf8')
 
 	def constantFromIndex(self, index, constType='*'):
 		if index < 1 or index > len(self.fileStructure['constants']):
@@ -271,6 +299,36 @@ class ClassFile(object):
 		self.fileStructure['interfaces'] = indexes
 
 		self.unlinkClassConstants()
+
+		for field in self.fileStructure['fields']:
+			self.unlinkField(field)
+
+	def unlinkField(self, field):
+		code = 0
+		for flag in field.accessFlags:
+			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
+				code |= 0x0001
+			elif flag == 'ACC_PRIVATE': # Declared private; usable only within the defining class.
+				code |= 0x0002
+			elif flag == 'ACC_PROTECTED': # Declared protected; may be accessed within subclasses.
+				code |= 0x0004
+			elif flag == 'ACC_STATIC': # Declared static.
+				code |= 0x0008
+			elif flag == 'ACC_FINAL': # Declared final; never directly assigned to after object construction
+				code |= 0x0010
+			elif flag == 'ACC_VOLATILE': # Declared volatile; cannot be cached.
+				code |= 0x0040
+			elif flag == 'ACC_TRANSIENT': # Declared transient; not written or read by a persistent object manager.
+				code |= 0x0080
+			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
+				code |= 0x1000
+			elif flag == 'ACC_ENUM': # Declared as an element of an enum.
+				code |= 0x4000
+			else:
+				raise Exception('invalid flag for field.accessFlags:'+flag)
+		field.accessFlags = code
+		field.nameIndex = self.constantToIndex(field.nameIndex, 'CONSTANT_Utf8')
+		field.descriptorIndex = self.constantToIndex(field.descriptorIndex, 'CONSTANT_Utf8')
 
 	def unlinkClassConstants(self):
 		consts = self.fileStructure['constants']
