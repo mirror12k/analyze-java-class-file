@@ -175,21 +175,21 @@ class ClassFile(object):
 	def linkClass(self):
 		flags = []
 		code = self.fileStructure['access_flags']
-		if code & 0x0001:
+		if code & 0x0001: # Declared public; may be accessed from outside its package.
 			flags.append('ACC_PUBLIC')
-		if code & 0x0010:
+		if code & 0x0010: # Declared final; no subclasses allowed.
 			flags.append('ACC_FINAL')
-		if code & 0x0020:
+		if code & 0x0020: # Treat superclass methods specially when invoked by the invokespecial instruction.
 			flags.append('ACC_SUPER')
-		if code & 0x0200:
+		if code & 0x0200: # Is an interface, not a class.
 			flags.append('ACC_INTERFACE')
-		if code & 0x0400:
+		if code & 0x0400: # Declared abstract; must not be instantiated.
 			flags.append('ACC_ABSTRACT')
-		if code & 0x1000:
+		if code & 0x1000: # Declared synthetic; not present in the source code.
 			flags.append('ACC_SYNTHETIC')
-		if code & 0x2000:
+		if code & 0x2000: # Declared as an annotation type.
 			flags.append('ACC_ANNOTATION')
-		if code & 0x4000:
+		if code & 0x4000: # Declared as an enum type.
 			flags.append('ACC_ENUM')
 		self.fileStructure['access_flags'] = flags
 
@@ -302,21 +302,21 @@ class ClassFile(object):
 		flags = self.fileStructure['access_flags']
 		code = 0
 		for flag in flags:
-			if flag == 'ACC_PUBLIC':
+			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
 				code |= 0x0001
-			elif flag == 'ACC_FINAL':
+			elif flag == 'ACC_FINAL': # Declared final; no subclasses allowed.
 				code |= 0x0010
-			elif flag == 'ACC_SUPER':
+			elif flag == 'ACC_SUPER': # Treat superclass methods specially when invoked by the invokespecial instruction.
 				code |= 0x0020
-			elif flag == 'ACC_INTERFACE':
+			elif flag == 'ACC_INTERFACE': # Is an interface, not a class.
 				code |= 0x0200
-			elif flag == 'ACC_ABSTRACT':
+			elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
 				code |= 0x0400
-			elif flag == 'ACC_SYNTHETIC':
+			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
 				code |= 0x1000
-			elif flag == 'ACC_ANNOTATION':
+			elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
 				code |= 0x2000
-			elif flag == 'ACC_ENUM':
+			elif flag == 'ACC_ENUM': # Declared as an enum type.
 				code |= 0x4000
 			else:
 				raise Exception('invalid flag for file.access_flags:'+flag)
