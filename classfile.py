@@ -61,26 +61,6 @@ class ClassFileConstant(object):
 
 
 
-class StringConstant(object):
-	def __init__(self, string):
-		self.string = string
-	def __str__(self):
-		return "StringConstant('"+self.string+"')"
-
-class ClassConstant(object):
-	def __init__(self, className):
-		self.className = className
-	def __str__(self):
-		return "ClassConstant('"+self.className+"')"
-
-class MethodConstant(object):
-	def __init__(self, methodName, methodType, methodClass):
-		self.methodName = methodName
-		self.methodType = methodType
-		self.methodClass = methodClass
-	def __str__(self):
-		return "MethodConstant("+self.methodClass+" -> "+self.methodName+" : "+self.methodType+" )"
-
 class ClassFileField(object):
 	def __init__(self, accessFlags, nameIndex, descriptorIndex, attributes):
 		self.accessFlags = accessFlags
@@ -123,6 +103,26 @@ class ClassFile(object):
 		self.filepath = filepath
 
 		self.unpackClassFile()
+
+
+
+	def constantFromIndex(self, index, constType='*'):
+		if index < 1 or index > len(self.fileStructure['constants']):
+			raise Exception('out-of-bounds constant index '+str(index)+' for constType "'+constType+'"')
+		const = self.fileStructure['constants'][index - 1]
+		if constType != '*' and const.tagName != constType:
+			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'"')
+		return const
+
+	def constantToIndex(self, const, constType='*'):
+		if constType != '*' and const.tagName != constType:
+			raise Exception('invalid constant type: "'+const.tagName+'" (expected "'+constType+'"')
+		index = self.fileStructure['constants'].index(const) + 1
+		return index
+
+
+
+
 
 	def unpackClassFile(self):
 		self.handle = open(self.filepath, 'rb')
@@ -206,6 +206,9 @@ class ClassFile(object):
 		for method in self.fileStructure['methods']:
 			self.linkMethod(method)
 
+		for attribute in self.fileStructure['attributes']:
+			self.linkAttribute(attribute)
+
 	def linkField(self, field):
 		flags = []
 		code = field.accessFlags
@@ -231,6 +234,9 @@ class ClassFile(object):
 
 		field.nameIndex = self.constantFromIndex(field.nameIndex, 'CONSTANT_Utf8')
 		field.descriptorIndex = self.constantFromIndex(field.descriptorIndex, 'CONSTANT_Utf8')
+
+		for attribute in field.attributes:
+			self.linkAttribute(attribute)
 
 	def linkMethod(self, method):
 		flags = []
@@ -264,19 +270,11 @@ class ClassFile(object):
 		method.nameIndex = self.constantFromIndex(method.nameIndex, 'CONSTANT_Utf8')
 		method.descriptorIndex = self.constantFromIndex(method.descriptorIndex, 'CONSTANT_Utf8')
 
-	def constantFromIndex(self, index, constType='*'):
-		if index < 1 or index > len(self.fileStructure['constants']):
-			raise Exception('out-of-bounds constant index '+str(index)+' for constType "'+constType+'"')
-		const = self.fileStructure['constants'][index - 1]
-		if constType != '*' and const.tagName != constType:
-			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'"')
-		return const
+		for attribute in method.attributes:
+			self.linkAttribute(attribute)
 
-	def constantToIndex(self, const, constType='*'):
-		if constType != '*' and const.tagName != constType:
-			raise Exception('invalid constant type: "'+const.tagName+'" (expected "'+constType+'"')
-		index = self.fileStructure['constants'].index(const) + 1
-		return index
+	def linkAttribute(self, attribute):
+		attribute.nameIndex = self.constantFromIndex(attribute.nameIndex, 'CONSTANT_Utf8')
 
 	def linkClassConstants(self):
 		consts = self.fileStructure['constants']
@@ -291,129 +289,6 @@ class ClassFile(object):
 			elif const.tagName == 'CONSTANT_NameAndType':
 				const.nameIndex = self.constantFromIndex(const.nameIndex, 'CONSTANT_Utf8')
 				const.descriptorIndex = self.constantFromIndex(const.descriptorIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
-				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
-				pass
-			else:
-				raise Exception ("unknown tag type: ", const.tagName)
-
-
-	def unlinkClass(self):
-		flags = self.fileStructure['access_flags']
-		code = 0
-		for flag in flags:
-			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
-				code |= 0x0001
-			elif flag == 'ACC_FINAL': # Declared final; no subclasses allowed.
-				code |= 0x0010
-			elif flag == 'ACC_SUPER': # Treat superclass methods specially when invoked by the invokespecial instruction.
-				code |= 0x0020
-			elif flag == 'ACC_INTERFACE': # Is an interface, not a class.
-				code |= 0x0200
-			elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
-				code |= 0x0400
-			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-				code |= 0x1000
-			elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
-				code |= 0x2000
-			elif flag == 'ACC_ENUM': # Declared as an enum type.
-				code |= 0x4000
-			else:
-				raise Exception('invalid flag for file.access_flags:'+flag)
-		self.fileStructure['access_flags'] = code
-
-		self.fileStructure['this_class'] = self.constantToIndex(self.fileStructure['this_class'], 'CONSTANT_Class')
-		self.fileStructure['super_class'] = self.constantToIndex(self.fileStructure['super_class'], 'CONSTANT_Class')
-
-		indexes = []
-		for interface in self.fileStructure['interfaces']:
-			if interface.tagName != 'CONSTANT_Class':
-				raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
-			const = self.fileStructure['constants'][index - 1]
-			indexes.append(self.fileStructure['constants'].index(interface) + 1)
-		self.fileStructure['interfaces'] = indexes
-
-		self.unlinkClassConstants()
-
-		for field in self.fileStructure['fields']:
-			self.unlinkField(field)
-
-		for method in self.fileStructure['methods']:
-			self.unlinkMethod(method)
-
-	def unlinkField(self, field):
-		code = 0
-		for flag in field.accessFlags:
-			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
-				code |= 0x0001
-			elif flag == 'ACC_PRIVATE': # Declared private; usable only within the defining class.
-				code |= 0x0002
-			elif flag == 'ACC_PROTECTED': # Declared protected; may be accessed within subclasses.
-				code |= 0x0004
-			elif flag == 'ACC_STATIC': # Declared static.
-				code |= 0x0008
-			elif flag == 'ACC_FINAL': # Declared final; never directly assigned to after object construction
-				code |= 0x0010
-			elif flag == 'ACC_VOLATILE': # Declared volatile; cannot be cached.
-				code |= 0x0040
-			elif flag == 'ACC_TRANSIENT': # Declared transient; not written or read by a persistent object manager.
-				code |= 0x0080
-			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-				code |= 0x1000
-			elif flag == 'ACC_ENUM': # Declared as an element of an enum.
-				code |= 0x4000
-			else:
-				raise Exception('invalid flag for field.accessFlags:'+flag)
-		field.accessFlags = code
-		field.nameIndex = self.constantToIndex(field.nameIndex, 'CONSTANT_Utf8')
-		field.descriptorIndex = self.constantToIndex(field.descriptorIndex, 'CONSTANT_Utf8')
-
-	def unlinkMethod(self, method):
-		code = 0
-		for flag in method.accessFlags:
-			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
-				code |= 0x0001
-			elif flag == 'ACC_PRIVATE': # Declared private; accessible only within the defining class.
-				code |= 0x0002
-			elif flag == 'ACC_PROTECTED': # Declared protected; may be accessed within subclasses.
-				code |= 0x0004
-			elif flag == 'ACC_STATIC': # Declared static.
-				code |= 0x0008
-			elif flag == 'ACC_FINAL': # Declared final; must not be overridden.
-				code |= 0x0010
-			elif flag == 'ACC_SYNCHRONIZED': # Declared synchronized; invocation is wrapped by a monitor use.
-				code |= 0x0020
-			elif flag == 'ACC_BRIDGE': # A bridge method, generated by the compiler.
-				code |= 0x0040
-			elif flag == 'ACC_VARARGS': # Declared with variable number of arguments.
-				code |= 0x0080
-			elif flag == 'ACC_NATIVE': # Declared native; implemented in a language other than Java.
-				code |= 0x0100
-			elif flag == 'ACC_ABSTRACT': # Declared abstract; no implementation is provided.
-				code |= 0x0400
-			elif flag == 'ACC_STRICT': # Declared strictfp; floating-point mode is FP-strict.
-				code |= 0x0800
-			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-				code |= 0x1000
-			else:
-				raise Exception('invalid flag for method.accessFlags:'+flag)
-		method.accessFlags = code
-
-		method.nameIndex = self.constantToIndex(method.nameIndex, 'CONSTANT_Utf8')
-		method.descriptorIndex = self.constantToIndex(method.descriptorIndex, 'CONSTANT_Utf8')
-	def unlinkClassConstants(self):
-		consts = self.fileStructure['constants']
-		for const in consts:
-			if const.tagName == 'CONSTANT_Class':
-				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_String':
-				const.stringIndex = self.constantToIndex(const.stringIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
-				const.classIndex = self.constantToIndex(const.classIndex, 'CONSTANT_Class')
-				const.nameAndTypeIndex = self.constantToIndex(const.nameAndTypeIndex, 'CONSTANT_NameAndType')
-			elif const.tagName == 'CONSTANT_NameAndType':
-				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
-				const.descriptorIndex = self.constantToIndex(const.descriptorIndex, 'CONSTANT_Utf8')
 			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
 				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
 				pass
@@ -568,6 +443,144 @@ class ClassFile(object):
 		data = struct.pack('>HI', attribute.nameIndex, len(attribute.data))
 		data += attribute.data
 		return data
+
+
+
+	def unlinkClass(self):
+		flags = self.fileStructure['access_flags']
+		code = 0
+		for flag in flags:
+			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
+				code |= 0x0001
+			elif flag == 'ACC_FINAL': # Declared final; no subclasses allowed.
+				code |= 0x0010
+			elif flag == 'ACC_SUPER': # Treat superclass methods specially when invoked by the invokespecial instruction.
+				code |= 0x0020
+			elif flag == 'ACC_INTERFACE': # Is an interface, not a class.
+				code |= 0x0200
+			elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
+				code |= 0x0400
+			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
+				code |= 0x1000
+			elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
+				code |= 0x2000
+			elif flag == 'ACC_ENUM': # Declared as an enum type.
+				code |= 0x4000
+			else:
+				raise Exception('invalid flag for file.access_flags:'+flag)
+		self.fileStructure['access_flags'] = code
+
+		self.fileStructure['this_class'] = self.constantToIndex(self.fileStructure['this_class'], 'CONSTANT_Class')
+		self.fileStructure['super_class'] = self.constantToIndex(self.fileStructure['super_class'], 'CONSTANT_Class')
+
+		indexes = []
+		for interface in self.fileStructure['interfaces']:
+			if interface.tagName != 'CONSTANT_Class':
+				raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
+			const = self.fileStructure['constants'][index - 1]
+			indexes.append(self.fileStructure['constants'].index(interface) + 1)
+		self.fileStructure['interfaces'] = indexes
+
+		self.unlinkClassConstants()
+
+		for field in self.fileStructure['fields']:
+			self.unlinkField(field)
+
+		for method in self.fileStructure['methods']:
+			self.unlinkMethod(method)
+
+		for attribute in self.fileStructure['attributes']:
+			self.unlinkAttribute(attribute)
+
+	def unlinkField(self, field):
+		code = 0
+		for flag in field.accessFlags:
+			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
+				code |= 0x0001
+			elif flag == 'ACC_PRIVATE': # Declared private; usable only within the defining class.
+				code |= 0x0002
+			elif flag == 'ACC_PROTECTED': # Declared protected; may be accessed within subclasses.
+				code |= 0x0004
+			elif flag == 'ACC_STATIC': # Declared static.
+				code |= 0x0008
+			elif flag == 'ACC_FINAL': # Declared final; never directly assigned to after object construction
+				code |= 0x0010
+			elif flag == 'ACC_VOLATILE': # Declared volatile; cannot be cached.
+				code |= 0x0040
+			elif flag == 'ACC_TRANSIENT': # Declared transient; not written or read by a persistent object manager.
+				code |= 0x0080
+			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
+				code |= 0x1000
+			elif flag == 'ACC_ENUM': # Declared as an element of an enum.
+				code |= 0x4000
+			else:
+				raise Exception('invalid flag for field.accessFlags:'+flag)
+		field.accessFlags = code
+		field.nameIndex = self.constantToIndex(field.nameIndex, 'CONSTANT_Utf8')
+		field.descriptorIndex = self.constantToIndex(field.descriptorIndex, 'CONSTANT_Utf8')
+
+		for attribute in field.attributes:
+			self.unlinkAttribute(attribute)
+
+	def unlinkMethod(self, method):
+		code = 0
+		for flag in method.accessFlags:
+			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
+				code |= 0x0001
+			elif flag == 'ACC_PRIVATE': # Declared private; accessible only within the defining class.
+				code |= 0x0002
+			elif flag == 'ACC_PROTECTED': # Declared protected; may be accessed within subclasses.
+				code |= 0x0004
+			elif flag == 'ACC_STATIC': # Declared static.
+				code |= 0x0008
+			elif flag == 'ACC_FINAL': # Declared final; must not be overridden.
+				code |= 0x0010
+			elif flag == 'ACC_SYNCHRONIZED': # Declared synchronized; invocation is wrapped by a monitor use.
+				code |= 0x0020
+			elif flag == 'ACC_BRIDGE': # A bridge method, generated by the compiler.
+				code |= 0x0040
+			elif flag == 'ACC_VARARGS': # Declared with variable number of arguments.
+				code |= 0x0080
+			elif flag == 'ACC_NATIVE': # Declared native; implemented in a language other than Java.
+				code |= 0x0100
+			elif flag == 'ACC_ABSTRACT': # Declared abstract; no implementation is provided.
+				code |= 0x0400
+			elif flag == 'ACC_STRICT': # Declared strictfp; floating-point mode is FP-strict.
+				code |= 0x0800
+			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
+				code |= 0x1000
+			else:
+				raise Exception('invalid flag for method.accessFlags:'+flag)
+		method.accessFlags = code
+
+		method.nameIndex = self.constantToIndex(method.nameIndex, 'CONSTANT_Utf8')
+		method.descriptorIndex = self.constantToIndex(method.descriptorIndex, 'CONSTANT_Utf8')
+
+		for attribute in method.attributes:
+			self.unlinkAttribute(attribute)
+
+	def unlinkAttribute(self, attribute):
+		attribute.nameIndex = self.constantToIndex(attribute.nameIndex, 'CONSTANT_Utf8')
+
+
+	def unlinkClassConstants(self):
+		consts = self.fileStructure['constants']
+		for const in consts:
+			if const.tagName == 'CONSTANT_Class':
+				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
+			elif const.tagName == 'CONSTANT_String':
+				const.stringIndex = self.constantToIndex(const.stringIndex, 'CONSTANT_Utf8')
+			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
+				const.classIndex = self.constantToIndex(const.classIndex, 'CONSTANT_Class')
+				const.nameAndTypeIndex = self.constantToIndex(const.nameAndTypeIndex, 'CONSTANT_NameAndType')
+			elif const.tagName == 'CONSTANT_NameAndType':
+				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
+				const.descriptorIndex = self.constantToIndex(const.descriptorIndex, 'CONSTANT_Utf8')
+			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
+				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
+				pass
+			else:
+				raise Exception ("unknown tag type: ", const.tagName)
 
 
 
