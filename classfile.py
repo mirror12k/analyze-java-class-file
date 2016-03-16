@@ -61,7 +61,14 @@ class ClassFileConstant(object):
 
 
 
-class ClassFileField(object):
+class ClassFileObject(object):
+	def getAttributeByName(self, name):
+		for attribute in self.attributes:
+			if attribute.nameIndex.string == name:
+				return attribute
+
+
+class ClassFileField(ClassFileObject):
 	def __init__(self, accessFlags, nameIndex, descriptorIndex, attributes):
 		self.accessFlags = accessFlags
 		self.nameIndex = nameIndex
@@ -71,26 +78,65 @@ class ClassFileField(object):
 		return 'ClassFileField(accessFlags='+str(self.accessFlags)+\
 			',nameIndex='+str(self.nameIndex)+\
 			',descriptorIndex='+str(self.descriptorIndex)+\
-			',attributes='+str(self.attributes)+')'
+			',attributes='+str([ str(o) for o in self.attributes ])+')'
 
-class ClassFileMethod(object):
+class ClassFileMethod(ClassFileObject):
 	def __init__(self, accessFlags, nameIndex, descriptorIndex, attributes):
 		self.accessFlags = accessFlags
 		self.nameIndex = nameIndex
 		self.descriptorIndex = descriptorIndex
 		self.attributes = attributes
+	def parseCodeAttribute(self, classfile):
+		attribute = self.getAttributeByName('Code')
+		if attribute is None:
+			raise Exception('missing Code attribute in method')
+		
+		data = attribute.data
+		codeStructure = {}
+		codeStructure['max_stack'], codeStructure['max_locals'], codeStructure['code_length'], = struct.unpack('>HHL', data[:8])
+		codeStructure['code'] = data[8 : 8 + codeStructure['code_length']]
+		data = data[8 + codeStructure['code_length']:]
+
+		codeStructure['exception_table_length'], = struct.unpack('>H', data[:2])
+		codeStructure['exception_table'] = data[2 : 2 + 8 * codeStructure['exception_table_length']]
+		codeStructure['exception_table'] = [ codeStructure['exception_table'][i * 8:i * 8 + 8] for i in range(codeStructure['exception_table_length']) ]
+		for i in range(codeStructure['exception_table_length']):
+			entry = {}
+			entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'], = struct.unpack('>HHHH', codeStructure['exception_table'][i])
+			entry['catch_type'] = classfile.constantFromIndex(entry['catch_type'])
+			codeStructure['exception_table'][i] = entry
+		data = data[2 + 8 * codeStructure['exception_table_length']:]
+
+		codeStructure['attributes_count'], = struct.unpack('>H', data[:2])
+		data = data[2:]
+		codeStructure['attributes'] = []
+		for i in range(codeStructure['attributes_count']):
+			attribute, data, = self.unpackAttribute(data)
+			classfile.linkAttribute(attribute)
+			codeStructure['attributes'].append(attribute)
+
+		if len(data) > 0:
+			raise Exception("invalid data on the end of Code attribute: "+str(data))
+
+		self.codeStructure = codeStructure
+
+	def unpackAttribute(self, data):
+		attributeNameIndex, attributeLength = struct.unpack('>HI', data[:6])
+		attributeData = data[6 : 6 + attributeLength]
+		return ClassFileAttribute(attributeNameIndex, attributeData), data[6+attributeLength:]
+
 	def __str__(self):
 		return 'ClassFileMethod(accessFlags='+str(self.accessFlags)+\
 			',nameIndex='+str(self.nameIndex)+\
 			',descriptorIndex='+str(self.descriptorIndex)+\
-			',attributes='+str(self.attributes)+')'
+			',attributes='+str([ str(o) for o in self.attributes ])+\
+			',code='+str(self.code)+')'
 
 
 class ClassFileAttribute(object):
 	def __init__(self, nameIndex, data):
 		self.nameIndex = nameIndex
 		self.data = data
-		# self.tagName = constantTagNames[tagType]
 	def __str__(self):
 		return 'ClassFileAttribute(nameIndex='+str(self.nameIndex)+')'
 
@@ -208,6 +254,9 @@ class ClassFile(object):
 
 		for attribute in self.fileStructure['attributes']:
 			self.linkAttribute(attribute)
+
+		for method in self.fileStructure['methods']:
+			method.parseCodeAttribute(self)
 
 	def linkField(self, field):
 		flags = []

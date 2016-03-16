@@ -16,16 +16,16 @@ def main():
 		pprint.pprint(file.fileStructure)
 		print ("class constants:")
 		for const in file.fileStructure['constants']:
-			print (const)
+			print ("\t", const)
 		print ("class fields:")
 		for field in file.fileStructure['fields']:
-			print (field)
+			print ("\t", field)
 		print ("class methods:")
 		for method in file.fileStructure['methods']:
-			print (method)
+			print ("\t", method)
 		print ("class attributes:")
 		for attr in file.fileStructure['attributes']:
-			print (attr)
+			print ("\t", attr)
 
 		for const in file.fileStructure['constants']:
 			if const.tagName == 'CONSTANT_Utf8' and const.string == 'helloworld!':
