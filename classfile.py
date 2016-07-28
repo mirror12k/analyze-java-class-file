@@ -35,6 +35,38 @@ class ClassFileConstant(object):
 		self.referenceKind = None
 		self.referenceIndex = None
 		self.bootstrapIndex = None
+	def link(self, classfile):
+		if self.tagName == 'CONSTANT_Class':
+			self.nameIndex = classfile.constantFromIndex(self.nameIndex, 'CONSTANT_Utf8')
+		elif self.tagName == 'CONSTANT_String':
+			self.stringIndex = classfile.constantFromIndex(self.stringIndex, 'CONSTANT_Utf8')
+		elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
+			self.classIndex = classfile.constantFromIndex(self.classIndex, 'CONSTANT_Class')
+			self.nameAndTypeIndex = classfile.constantFromIndex(self.nameAndTypeIndex, 'CONSTANT_NameAndType')
+		elif self.tagName == 'CONSTANT_NameAndType':
+			self.nameIndex = classfile.constantFromIndex(self.nameIndex, 'CONSTANT_Utf8')
+			self.descriptorIndex = classfile.constantFromIndex(self.descriptorIndex, 'CONSTANT_Utf8')
+		elif self.tagName == 'CONSTANT_Utf8' or self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+			or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
+			pass
+		else:
+			raise Exception ("unknown tag type: ", self.tagName)
+	def unlink(self, classfile):
+		if self.tagName == 'CONSTANT_Class':
+			self.nameIndex = classfile.constantToIndex(self.nameIndex, 'CONSTANT_Utf8')
+		elif self.tagName == 'CONSTANT_String':
+			self.stringIndex = classfile.constantToIndex(self.stringIndex, 'CONSTANT_Utf8')
+		elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
+			self.classIndex = classfile.constantToIndex(self.classIndex, 'CONSTANT_Class')
+			self.nameAndTypeIndex = classfile.constantToIndex(self.nameAndTypeIndex, 'CONSTANT_NameAndType')
+		elif self.tagName == 'CONSTANT_NameAndType':
+			self.nameIndex = classfile.constantToIndex(self.nameIndex, 'CONSTANT_Utf8')
+			self.descriptorIndex = classfile.constantToIndex(self.descriptorIndex, 'CONSTANT_Utf8')
+		elif self.tagName == 'CONSTANT_Utf8' or self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+			or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
+			pass
+		else:
+			raise Exception ("unknown tag type: ", self.tagName)
 	def __str__(self):
 		s = 'C<'+self.tagName+'>('
 		if self.nameIndex is not None:
@@ -86,7 +118,7 @@ class ClassFileMethod(ClassFileObject):
 		self.nameIndex = nameIndex
 		self.descriptorIndex = descriptorIndex
 		self.attributes = attributes
-	def parseCodeAttribute(self, classfile):
+	def unpackCodeAttribute(self, classfile):
 		attribute = self.getAttributeByName('Code')
 		if attribute is None:
 			raise Exception('missing Code attribute in method')
@@ -120,17 +152,45 @@ class ClassFileMethod(ClassFileObject):
 
 		self.codeStructure = codeStructure
 
+	def packCodeAttribute(self, classfile):
+		attribute = self.getAttributeByName('Code')
+		codeStructure = self.codeStructure
+		data = b''
+
+		data += struct.pack('>HHL', codeStructure['max_stack'], codeStructure['max_locals'], codeStructure['code_length'])
+		data += codeStructure['code']
+
+		data += struct.pack('>H', codeStructure['exception_table_length'])
+		for entry in codeStructure['exception_table']:
+			entry['catch_type'] = classfile.constantToIndex(entry['catch_type'])
+			data += struct.pack('>HHHH', entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'])
+
+		data += struct.pack('>H', codeStructure['attributes_count'])
+		for attribute in codeStructure['attributes']:
+			classfile.unlinkAttribute(attribute)
+			data += self.packAttribute(attribute)
+
+		attribute.data = data
+
+
+
+
 	def unpackAttribute(self, data):
 		attributeNameIndex, attributeLength = struct.unpack('>HI', data[:6])
 		attributeData = data[6 : 6 + attributeLength]
 		return ClassFileAttribute(attributeNameIndex, attributeData), data[6+attributeLength:]
+	def packAttribute(self, attribute):
+		data = struct.pack('>HI', attribute.nameIndex, len(attribute.data))
+		data += attribute.data
+		return data
+
 
 	def __str__(self):
 		return 'ClassFileMethod(accessFlags='+str(self.accessFlags)+\
 			',nameIndex='+str(self.nameIndex)+\
 			',descriptorIndex='+str(self.descriptorIndex)+\
 			',attributes='+str([ str(o) for o in self.attributes ])+\
-			',code='+str(self.code)+')'
+			',code='+str(self.codeStructure)+')'
 
 
 class ClassFileAttribute(object):
@@ -256,7 +316,7 @@ class ClassFile(object):
 			self.linkAttribute(attribute)
 
 		for method in self.fileStructure['methods']:
-			method.parseCodeAttribute(self)
+			method.unpackCodeAttribute(self)
 
 	def linkField(self, field):
 		flags = []
@@ -328,21 +388,7 @@ class ClassFile(object):
 	def linkClassConstants(self):
 		consts = self.fileStructure['constants']
 		for const in consts:
-			if const.tagName == 'CONSTANT_Class':
-				const.nameIndex = self.constantFromIndex(const.nameIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_String':
-				const.stringIndex = self.constantFromIndex(const.stringIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
-				const.classIndex = self.constantFromIndex(const.classIndex, 'CONSTANT_Class')
-				const.nameAndTypeIndex = self.constantFromIndex(const.nameAndTypeIndex, 'CONSTANT_NameAndType')
-			elif const.tagName == 'CONSTANT_NameAndType':
-				const.nameIndex = self.constantFromIndex(const.nameIndex, 'CONSTANT_Utf8')
-				const.descriptorIndex = self.constantFromIndex(const.descriptorIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
-				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
-				pass
-			else:
-				raise Exception ("unknown tag type: ", const.tagName)
+			const.link(self)
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -496,6 +542,22 @@ class ClassFile(object):
 
 
 	def unlinkClass(self):
+
+		for method in self.fileStructure['methods']:
+			method.packCodeAttribute(self)
+
+
+
+		for field in self.fileStructure['fields']:
+			self.unlinkField(field)
+
+		for method in self.fileStructure['methods']:
+			self.unlinkMethod(method)
+
+		for attribute in self.fileStructure['attributes']:
+			self.unlinkAttribute(attribute)
+
+
 		flags = self.fileStructure['access_flags']
 		code = 0
 		for flag in flags:
@@ -531,15 +593,6 @@ class ClassFile(object):
 		self.fileStructure['interfaces'] = indexes
 
 		self.unlinkClassConstants()
-
-		for field in self.fileStructure['fields']:
-			self.unlinkField(field)
-
-		for method in self.fileStructure['methods']:
-			self.unlinkMethod(method)
-
-		for attribute in self.fileStructure['attributes']:
-			self.unlinkAttribute(attribute)
 
 	def unlinkField(self, field):
 		code = 0
@@ -615,21 +668,8 @@ class ClassFile(object):
 	def unlinkClassConstants(self):
 		consts = self.fileStructure['constants']
 		for const in consts:
-			if const.tagName == 'CONSTANT_Class':
-				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_String':
-				const.stringIndex = self.constantToIndex(const.stringIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
-				const.classIndex = self.constantToIndex(const.classIndex, 'CONSTANT_Class')
-				const.nameAndTypeIndex = self.constantToIndex(const.nameAndTypeIndex, 'CONSTANT_NameAndType')
-			elif const.tagName == 'CONSTANT_NameAndType':
-				const.nameIndex = self.constantToIndex(const.nameIndex, 'CONSTANT_Utf8')
-				const.descriptorIndex = self.constantToIndex(const.descriptorIndex, 'CONSTANT_Utf8')
-			elif const.tagName == 'CONSTANT_Utf8' or const.tagName == 'CONSTANT_Integer' or const.tagName == 'CONSTANT_Float'\
-				or const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
-				pass
-			else:
-				raise Exception ("unknown tag type: ", const.tagName)
+			const.unlink(self)
+
 
 
 
