@@ -556,8 +556,6 @@ class ClassBytecode(object):
 							bytecode = bytecode + chr(assemblyToBytecode[assembly[index + 1]]) +\
 									chr((assembly[index + 2] >> 8) & 0xff) + chr(assembly[index + 2] & 0xff)
 							index = index + 3
-
-
 					else:
 						raise Exception('invalid other assembly code for "'+str(assembly[index])+'" at index '+str(index))
 				else:
