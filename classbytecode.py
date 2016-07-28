@@ -207,6 +207,17 @@ bytecode2ToAssembly = {
 	0xc7 : 'ifnonnull',
 }
 
+bytecodeOtherToAssembly = {
+	0xaa : 'tableswitch',
+	0xab : 'lookupswitch',
+	0xb9 : 'invokeinterface',
+	0xba : 'invokedynamic',
+	0xc4 : 'wide',
+	0xc5 : 'multianewarray',
+	0xc8 : 'goto_w',
+	0xc9 : 'jsr_w',
+}
+
 
 class ClassBytecode(object):
 	def __init__(self):
@@ -232,6 +243,47 @@ class ClassBytecode(object):
 				else:
 					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
 				offset = offset + 3
+			elif bytecodeOtherToAssembly.get(c) is not None:
+				instruction = bytecodeOtherToAssembly[c]
+				if instruction == 'goto_w' or instruction == 'jsr_w':
+					self.assembly.append(instruction)
+					self.assembly.append((ord(bytecode[offset + 1]) << 24) + (ord(bytecode[offset + 2]) << 16) +
+							(ord(bytecode[offset + 3]) << 8) + ord(bytecode[offset + 4]))
+					offset = offset + 5
+				elif instruction == 'invokedynamic':
+					self.assembly.append(instruction)
+					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					offset = offset + 5
+				elif instruction == 'invokeinterface':
+					self.assembly.append(instruction)
+					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					self.assembly.append(ord(bytecode[offset + 3]))
+					offset = offset + 5
+				elif instruction == 'tableswitch':
+					raise Exception('unimplemented')
+				elif instruction == 'lookupswitch':
+					raise Exception('unimplemented')
+				elif instruction == 'multianewarray':
+					self.assembly.append(instruction)
+					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					self.assembly.append(ord(bytecode[offset + 3]))
+					offset = offset + 4
+				elif instruction == 'wide':
+					c2 = ord(bytecode[offset + 1])
+					if c2 == 0x84: # iinc
+						self.assembly.append('iinc')
+						self.assembly.append((ord(bytecode[offset + 2]) << 8) + ord(bytecode[offset + 3]))
+						self.assembly.append((ord(bytecode[offset + 4]) << 8) + ord(bytecode[offset + 5]))
+						offset = offset + 6
+					elif bytecode1ToAssembly.get(c2) is not None:
+						self.assembly.append(bytecode1ToAssembly[c2])
+						self.assembly.append((ord(bytecode[offset + 2]) << 8) + ord(bytecode[offset + 3]))
+						offset = offset + 4
+					else:
+						raise Exception('invalid wide bytecode:' + str(c))
+
+				else:
+					raise Exception('error')
 			else:
 				raise Exception('invalid bytecode:' + str(c))
 
