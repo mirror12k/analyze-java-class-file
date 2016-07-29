@@ -63,6 +63,33 @@ def classAccessFlagsToCode(flags):
 			raise Exception('invalid flag in class access flags: '+flag)
 	return ' '.join(newflags)
 
+def fieldAccessFlagsToCode(flags):
+	newflags = []
+	for flag in flags:
+		if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
+			newflags.append('public')
+		elif flag == 'ACC_PRIVATE': # Declared private; usable only within the defining class.
+			newflags.append('private')
+		elif flag == 'ACC_PROTECTED': # Declared protected; may be accessed within subclasses.
+			newflags.append('protected')
+		elif flag == 'ACC_STATIC': # Declared static.
+			newflags.append('static')
+		elif flag == 'ACC_FINAL': # Declared final; never directly assigned to after object construction
+			newflags.append('final')
+		elif flag == 'ACC_VOLATILE': # Declared volatile; cannot be cached.
+			newflags.append('volatile')
+		elif flag == 'ACC_TRANSIENT': # Declared transient; not written or read by a persistent object manager.
+			newflags.append('transient')
+		elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
+			newflags.append('SYNTHETIC')
+		elif flag == 'ACC_ENUM': # Declared as an element of an enum.
+			newflags.append('enum')
+		else:
+			raise Exception('invalid flag in method access flags: '+flag)
+	return ' '.join(newflags)
+
+
+
 def methodAccessFlagsToCode(flags):
 	newflags = []
 	for flag in flags:
@@ -98,14 +125,14 @@ def methodAccessFlagsToCode(flags):
 letterTypeToCode = {
 	'V' : 'void',
 
-	'i' : 'int',
-	'l' : 'long',
-	's' : 'short',
-	'b' : 'byte',
-	'c' : 'char',
-	'f' : 'float',
-	'd' : 'double',
-	'z' : 'boolean',
+	'I' : 'int',
+	'J' : 'long',
+	'S' : 'short',
+	'B' : 'byte',
+	'C' : 'char',
+	'F' : 'float',
+	'D' : 'double',
+	'Z' : 'boolean',
 
 	'a' : 'reference',
 }
@@ -152,6 +179,7 @@ def methodDescriptorToCode(desc):
 
 
 
+
 def main(args):
 	if len(args) == 0:
 		print("argument required")
@@ -162,6 +190,14 @@ def main(args):
 				' extends ' + classConstantToName(file.fileStructure['super_class'])
 
 		print classDeclaration + ' {'
+
+
+		for field in file.fileStructure['fields']:
+			name = field.nameIndex.string
+			typestr = typeToCode(field.descriptorIndex.string)
+			print '\t' + fieldAccessFlagsToCode(field.accessFlags) + ' ' + typestr + ' ' + name + ';'
+
+		print ''
 
 		for method in file.fileStructure['methods']:
 			argtypes, rettype = methodDescriptorToCode(method.descriptorIndex.string)
