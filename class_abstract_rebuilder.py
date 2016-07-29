@@ -8,6 +8,33 @@ import classbytecode
 
 
 
+
+
+
+
+
+
+
+
+def stringConstantSimple(const):
+	if const.tagName == 'CONSTANT_Utf8':
+		return '"' + const.string + '"'
+	elif const.tagName == 'CONSTANT_Class':
+		return 'class ' + classConstantToName(const)
+	elif const.tagName == 'CONSTANT_String':
+		return 'string "' + const.stringIndex.string + '"'
+	elif const.tagName == 'CONSTANT_Methodref':
+		argtypes, rettype = methodDescriptorToCode(const.nameAndTypeIndex.descriptorIndex.string)
+		return 'method ' + rettype + ' ' + classConstantToName(const.classIndex) + '.' + const.nameAndTypeIndex.nameIndex.string + ' (' + ', '.join(argtypes) + ')'
+	elif const.tagName == 'CONSTANT_Fieldref':
+		return 'field ' + typeToCode(const.nameAndTypeIndex.descriptorIndex.string) + ' ' +\
+				classConstantToName(const.classIndex) + '.' + const.nameAndTypeIndex.nameIndex.string
+	else:
+		raise Exception("unknown constant type: " + const.tagName)
+
+
+
+
 def classNameToCode(classname):
 	return classname.replace('/', '.')
 
@@ -178,7 +205,7 @@ def methodDescriptorToCode(desc):
 			offset = offset + 1
 
 		if desc[offset] == 'L':
-			endoffset = offset + desc.find(';', offset) - 1
+			endoffset = desc.find(';', offset) + 1
 			offset = endoffset
 		else:
 			endoffset = offset + 1

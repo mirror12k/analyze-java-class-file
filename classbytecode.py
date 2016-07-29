@@ -3,6 +3,8 @@
 
 import struct
 
+import class_abstract_rebuilder
+
 
 
 bytecode0ToAssembly = {
@@ -863,7 +865,8 @@ class ClassBytecode(object):
 				if type(self.assembly[offset-1]) == str and self.globalize_jumps and self.assembly[offset-1] in assemblyJumpListing:
 					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
 				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
-					code = code + ' #' + str(self.assembly[offset]) + '\t\t// ' + str(self.classfile.fileStructure['constants'][self.assembly[offset] - 1])
+					code = code + ' #' + str(self.assembly[offset]) + '\t\t// ' +\
+							class_abstract_rebuilder.stringConstantSimple(self.classfile.fileStructure['constants'][self.assembly[offset] - 1])
 				else:
 					code = code + ' ' + str(self.assembly[offset])
 			offset = offset + 1
