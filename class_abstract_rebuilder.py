@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 
 import sys
@@ -318,7 +318,7 @@ def main(args):
 				opts['decompile_bytecode'] = True
 			else:
 				rebuilder = AbstractClassRebuilder(arg, opts)
-				print rebuilder.stringClass()
+				print (rebuilder.stringClass())
 
 
 

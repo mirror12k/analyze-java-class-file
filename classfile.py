@@ -89,6 +89,29 @@ class ClassFileConstant(object):
 			s += 'referenceIndex=' + str(self.referenceIndex) + ','
 		s += ')'
 		return s
+	def __eq__(self, other):
+		if not isinstance(other, ClassFileConstant):
+			return False
+		else:
+			if self.tagType != other.tagType:
+				return False
+			else:
+				if self.tagName == 'CONSTANT_Utf8':
+					return self.string == other.string
+				elif self.tagName == 'CONSTANT_Class':
+					return self.nameIndex == other.nameIndex
+				elif self.tagName == 'CONSTANT_String':
+					return self.stringIndex == other.stringIndex
+				elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
+					return self.classIndex == other.classIndex and self.nameAndTypeIndex == other.nameAndTypeIndex
+				elif self.tagName == 'CONSTANT_NameAndType':
+					return self.nameIndex == other.nameIndex and self.descriptorIndex == other.descriptorIndex
+				elif self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+						or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
+					return self.value == other.value
+				else:
+					raise Exception("unknown constant type: " + self.tagName)
+
 
 
 

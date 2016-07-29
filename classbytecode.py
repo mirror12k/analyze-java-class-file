@@ -715,7 +715,7 @@ class ClassBytecode(object):
 		# self.bytecode = bytecode
 		offset = 0
 		while offset < len(bytecode):
-			c = ord(bytecode[offset])
+			c = bytecode[offset]
 			if bytecode0ToAssembly.get(c) is not None:
 				self.assembly.append(bytecode0ToAssembly[c])
 				offset = offset + 1

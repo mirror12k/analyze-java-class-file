@@ -27,11 +27,16 @@ def main():
 		for attr in file.fileStructure['attributes']:
 			print ("\t", attr)
 
-		for const in file.fileStructure['constants']:
-			if const.tagName == 'CONSTANT_Utf8' and const.string == 'helloworld!':
-				print ("found my const: ", const)
-				const.string = 'game over! try again next time!'
-				print("changed it to ", const)
+		c = classfile.ClassFileConstant(1)
+		c.string = 'java/lang/System'
+		if c in file.fileStructure['constants']:
+			print ("present!")
+
+		# for const in file.fileStructure['constants']:
+		# 	if const.tagName == 'CONSTANT_Utf8' and const.string == 'helloworld!':
+		# 		print ("found my const: ", const)
+		# 		const.string = 'game over! try again next time!'
+		# 		print("changed it to ", const)
 
 		file.packClassFile()
 
