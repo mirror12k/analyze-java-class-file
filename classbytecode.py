@@ -565,14 +565,30 @@ class ClassBytecode(object):
 				raise Exception('invalid assembly "'+str(assembly[index])+'" at index '+str(index))
 		self.bytecode = bytecode
 
+	def stringAssembly(self):
+		code = ''
+
+		for inst in self.assembly:
+			if type(inst) == str:
+				if len(code) == 0:
+					code = inst
+				else:
+					code = code + '\n' + inst
+			else:
+				code = code + ' ' + str(inst)
+
+		return code
 
 
 
 
 
 
-bc = ClassBytecode()
-bc.decompile(b'\xb2\x00\x02\x12\x03\xb6\x00\x04\xa7\x00\x0cL\xb2\x00\x02\x12\x06\xb6\x00\x04\xb1')
-print bc.assembly
-bc.compile()
-print [bc.bytecode]
+
+
+# bc = ClassBytecode()
+# bc.decompile(b'\xb2\x00\x02\x12\x03\xb6\x00\x04\xa7\x00\x0cL\xb2\x00\x02\x12\x06\xb6\x00\x04\xb1')
+# print bc.assembly
+# bc.compile()
+# print [bc.bytecode]
+# print bc.stringAssembly()

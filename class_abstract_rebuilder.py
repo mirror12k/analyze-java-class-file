@@ -4,6 +4,7 @@
 import sys
 
 import classfile
+import classbytecode
 
 
 
@@ -192,8 +193,8 @@ def methodDescriptorToCode(desc):
 	return (argtypes, rettype)
 
 
-def indentCode(code):
-	return '\n'.join([ '\t' + line for line in code.split('\n') ])
+def indentCode(code, count=1):
+	return '\n'.join([ '\t' * count + line for line in code.split('\n') ])
 
 
 class AbstractClassRebuilder(object):
@@ -201,6 +202,7 @@ class AbstractClassRebuilder(object):
 		self.file = classfile.openFile(filepath)
 		self.opts = {
 			'render_abstract' : opts.get('render_abstract', False),
+			'decompile_bytecode' : opts.get('decompile_bytecode', False),
 		}
 	def stringClass(self):
 		text = ''
@@ -259,7 +261,12 @@ class AbstractClassRebuilder(object):
 			text = text + ';'
 		else:
 			text = text + ' {\n'
-			text = text + '\t// code ...\n'
+			if self.opts['decompile_bytecode']:
+				bc = classbytecode.ClassBytecode()
+				bc.decompile(method.codeStructure['code'])
+				text = text + indentCode(bc.stringAssembly()) + '\n'
+			else:
+				text = text + '\t// code ...\n'
 			text = text + '}'
 
 		return text
@@ -280,6 +287,8 @@ def main(args):
 		for arg in args:
 			if arg == '--render_abstract':
 				opts['render_abstract'] = True
+			elif arg == '--decompile_bytecode':
+				opts['decompile_bytecode'] = True
 			else:
 				rebuilder = AbstractClassRebuilder(arg, opts)
 				print rebuilder.stringClass()
