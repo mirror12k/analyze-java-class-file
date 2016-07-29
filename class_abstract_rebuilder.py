@@ -23,6 +23,21 @@ def classConstantToName(const):
 
 	return classNameToCode(name.string)
 
+def classConstantToSimpleName(const):
+	if const.tagName != 'CONSTANT_Class':
+		raise Exception('classConstantToSimpleName called with non-class constant: ' + str(const))
+
+	name = const.nameIndex
+
+	if name.tagName != 'CONSTANT_Utf8':
+		raise Exception('classConstantToSimpleName called with non-string classname constant: ' + str(name))
+
+	code = classNameToCode(name.string)
+	if code.rfind('.') == -1:
+		return code
+	else:
+		return code[code.rfind('.')+1:]
+
 
 def classAccessFlagsToCode(flags):
 	newflags = []
@@ -137,7 +152,6 @@ def methodDescriptorToCode(desc):
 
 
 
-
 def main(args):
 	if len(args) == 0:
 		print("argument required")
@@ -151,9 +165,20 @@ def main(args):
 
 		for method in file.fileStructure['methods']:
 			argtypes, rettype = methodDescriptorToCode(method.descriptorIndex.string)
-			print '\t' + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + method.nameIndex.string + ' (' + ', '.join(argtypes) + ') {'
-			print '\t\t// code ...'
-			print '\t}'
+			methodname = method.nameIndex.string
+
+			if methodname == '<clinit>':
+				print '\t' + methodAccessFlagsToCode(method.accessFlags) + ' {'
+				print '\t\t// code ...'
+				print '\t}'
+			else:
+				if methodname == '<init>':
+					methodname = classConstantToSimpleName(file.fileStructure['this_class'])
+
+				print '\t' + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
+						' (' + ', '.join(argtypes) + ') {'
+				print '\t\t// code ...'
+				print '\t}'
 
 		print '}'
 
