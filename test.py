@@ -23,6 +23,8 @@ def main():
 		print ("class methods:")
 		for method in file.fileStructure['methods']:
 			print ("\t", method)
+			if 'stackmap' in method.codeStructure:
+				pprint.pprint(method.codeStructure['stackmap'])
 		print ("class attributes:")
 		for attr in file.fileStructure['attributes']:
 			print ("\t", attr)

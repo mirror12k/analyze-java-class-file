@@ -173,7 +173,116 @@ class ClassFileMethod(ClassFileObject):
 		if len(data) > 0:
 			raise Exception("invalid data on the end of Code attribute: "+str(data))
 
+
+		stackmap = None
+		for attribute in codeStructure['attributes']:
+			if attribute.nameIndex.string == 'StackMapTable':
+				stackmap = attribute
+
+		if stackmap is not None:
+			print ("got stackmap: ", str(stackmap), str(stackmap.data))
+			data = stackmap.data
+			frame_count, = struct.unpack('>H', data[:2])
+			data = data[2:]
+			stackframes = []
+			offset = 2
+			for i in range(frame_count):
+				frame, data = self.unpackStackFrame(data)
+				stackframes.append(frame)
+
+			codeStructure['stackmap'] = stackframes
+
 		self.codeStructure = codeStructure
+
+	def unpackStackFrame(self, data):
+		frame_type, = struct.unpack('>B', data[0:1])
+		data = data[1:]
+		if frame_type >= 0 and frame_type <= 63:
+			return { 'frame_type' : 'same_frame', 'offset_delta' : frame_type }, data
+		elif frame_type >= 64 and frame_type <= 127:
+			typeinfo, data = self.unpackStackTypeInfo(data)
+			return { 'frame_type' : 'same_locals_1_stack_item_frame', 'offset_delta' : frame_type - 64, 'stack' : typeinfo }, data
+		elif frame_type == 247:
+			offset_delta, = struct.unpack('>H', data[0:2])
+			data = data[2:]
+			typeinfo, data = self.unpackStackTypeInfo(data)
+			return { 'frame_type' : 'same_locals_1_stack_item_frame_extended', 'offset_delta' : offset_delta, 'stack' : typeinfo }, data
+		elif frame_type >= 248 and frame_type <= 250:
+			offset_delta, = struct.unpack('>H', data[0:2])
+			data = data[2:]
+			locals_absent = 251 - frame_type
+			return { 'frame_type' : 'chop_frame', 'offset_delta' : offset_delta, 'locals_absent' : locals_absent }, data
+		elif frame_type == 251:
+			offset_delta, = struct.unpack('>H', data[0:2])
+			data = data[2:]
+			return { 'frame_type' : 'same_frame_extended', 'offset_delta' : offset_delta }, data
+		elif frame_type >= 252 and frame_type <= 254:
+			offset_delta, = struct.unpack('>H', data[0:2])
+			data = data[2:]
+			locals_appended = frame_type - 251
+			stack = []
+			for i in range(locals_appended):
+				typeinfo, data = self.unpackStackTypeInfo(data)
+				stack.append(typeinfo)
+			return {
+				'frame_type' : 'append_frame',
+				'offset_delta' : offset_delta,
+				# 'locals_appended' : locals_appended,
+				'stack' : stack,
+			}, data
+		elif frame_type == 255:
+			offset_delta, number_of_locals = struct.unpack('>HH', data[0:4])
+			data = data[4:]
+			locals_stack = []
+			for i in range(number_of_locals):
+				typeinfo, data = self.unpackStackTypeInfo(data)
+				locals_stack.append(typeinfo)
+			number_of_stack, = struct.unpack('>H', data[0:2])
+			data = data[2:]
+			stack = []
+			for i in range(number_of_stack):
+				typeinfo, data = self.unpackStackTypeInfo(data)
+				stack.append(typeinfo)
+			return {
+				'frame_type' : 'FULL_FRAME',
+				'offset_delta' : offset_delta,
+				# 'number_of_locals' : number_of_locals,
+				'locals_stack' : locals_stack,
+				# 'number_of_stack' : number_of_stack,
+				'stack' : stack,
+			}, data
+
+		else:
+			raise Exception ("invalid stack frame type: "+str(frame_type))
+
+	def unpackStackTypeInfo(self, data):
+		variable_type, = struct.unpack('>B', data[0:1])
+		if variable_type == 0:
+			return ['ITEM_Top'], data[1:]
+		elif variable_type == 1:
+			return ['ITEM_Integer'], data[1:]
+		elif variable_type == 2:
+			return ['ITEM_Float'], data[1:]
+		elif variable_type == 3:
+			return ['ITEM_Double'], data[1:]
+		elif variable_type == 4:
+			return ['ITEM_Long'], data[1:]
+		elif variable_type == 5:
+			return ['ITEM_Null'], data[1:]
+		elif variable_type == 6:
+			return ['ITEM_UninitializedThis'], data[1:]
+		elif variable_type == 7:
+			const = struct.unpack('>H', data[1:3])
+			return ['ITEM_Object', const], data[3:]
+		elif variable_type == 8:
+			offset = struct.unpack('>H', data[1:3])
+			return ['ITEM_Uninitialized', offset], data[3:]
+		else:
+			raise Exception ("unknown variable type: "+str(variable_type))
+
+
+
+
 
 	def packCodeAttribute(self, classfile):
 		attribute = self.getAttributeByName('Code')
