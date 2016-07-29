@@ -38,6 +38,21 @@ def classConstantToSimpleName(const):
 	else:
 		return code[code.rfind('.')+1:]
 
+def classConstantToPackageName(const):
+	if const.tagName != 'CONSTANT_Class':
+		raise Exception('classConstantToPackageName called with non-class constant: ' + str(const))
+
+	name = const.nameIndex
+
+	if name.tagName != 'CONSTANT_Utf8':
+		raise Exception('classConstantToPackageName called with non-string classname constant: ' + str(name))
+
+	code = classNameToCode(name.string)
+	if code.rfind('.') == -1:
+		return None
+	else:
+		return code[:code.rfind('.')]
+
 
 def classAccessFlagsToCode(flags):
 	newflags = []
@@ -50,7 +65,8 @@ def classAccessFlagsToCode(flags):
 			pass
 			# newflags.append()
 		elif flag == 'ACC_INTERFACE': # Is an interface, not a class.
-			newflags.append('interface')
+			pass # this is handled elsewhere
+			# newflags.append('interface')
 		elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
 			newflags.append('abstract')
 		elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
@@ -164,7 +180,7 @@ def methodDescriptorToCode(desc):
 			endoffset = offset + desc.find(';', offset) - 1
 			offset = endoffset
 		else:
-			endoffset = offset
+			endoffset = offset + 1
 			offset = offset + 1
 
 		typestr = desc[startoffset:endoffset]
@@ -184,21 +200,33 @@ class AbstractClassRebuilder(object):
 	def __init__(self, filepath, opts={}):
 		self.file = classfile.openFile(filepath)
 		self.opts = {
-			'abstract_all' : opts.get('abstract_all', False),
+			'render_abstract' : opts.get('render_abstract', False),
 		}
 	def stringClass(self):
 		text = ''
 
+		if classConstantToPackageName(self.file.fileStructure['this_class']) is not None:
+			text = text + 'package ' + classConstantToPackageName(self.file.fileStructure['this_class']) + ';\n'
+
+		if self.opts['render_abstract']:
+			if 'ACC_ABSTRACT' not in self.file.fileStructure['access_flags']:
+				text = text + 'abstract '
+
 		text = text + classAccessFlagsToCode(self.file.fileStructure['access_flags']) + ' class ' + classConstantToName(self.file.fileStructure['this_class']) +\
 				' extends ' + classConstantToName(self.file.fileStructure['super_class']) + ' {\n'
+
+		if len(self.file.fileStructure['fields']) > 0:
+			text = text + '\t// fields\n'
 
 		for field in self.file.fileStructure['fields']:
 			text = text + '\t' + self.stringField(field) + '\n'
 			
-
 		if len(self.file.fileStructure['fields']) > 0:
 			text = text + '\n'
 
+
+		if len(self.file.fileStructure['methods']) > 0:
+			text = text + '\t// methods\n'
 
 		for method in self.file.fileStructure['methods']:
 			text = text + indentCode(self.stringMethod(method)) + '\n'
@@ -213,7 +241,7 @@ class AbstractClassRebuilder(object):
 		argtypes, rettype = methodDescriptorToCode(method.descriptorIndex.string)
 		methodname = method.nameIndex.string
 
-		if self.opts['abstract_all']:
+		if self.opts['render_abstract']:
 			if 'ACC_ABSTRACT' not in method.accessFlags:
 				text = text + 'abstract '
 
@@ -225,9 +253,9 @@ class AbstractClassRebuilder(object):
 				methodname = classConstantToSimpleName(self.file.fileStructure['this_class'])
 
 			text = text + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
-					' (' + ', '.join(argtypes) + ')'
+					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 
-		if self.opts['abstract_all']:
+		if self.opts['render_abstract']:
 			text = text + ';'
 		else:
 			text = text + ' {\n'
@@ -248,9 +276,13 @@ def main(args):
 	if len(args) == 0:
 		print("argument required")
 	else:
-		rebuilder = AbstractClassRebuilder(args[0])
-
-		print rebuilder.stringClass()
+		opts = {}
+		for arg in args:
+			if arg == '--render_abstract':
+				opts['render_abstract'] = True
+			else:
+				rebuilder = AbstractClassRebuilder(arg, opts)
+				print rebuilder.stringClass()
 
 
 
