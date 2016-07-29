@@ -262,7 +262,7 @@ class AbstractClassRebuilder(object):
 		else:
 			text = text + ' {\n'
 			if self.opts['decompile_bytecode']:
-				bc = classbytecode.ClassBytecode()
+				bc = classbytecode.ClassBytecode(resolve_constants=True, classfile=self.file)
 				bc.decompile(method.codeStructure['code'])
 				text = text + indentCode(bc.stringAssembly()) + '\n'
 			else:

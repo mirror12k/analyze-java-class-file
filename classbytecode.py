@@ -655,6 +655,23 @@ assemblyToSize = {
 
 
 
+assemblyConstantReferenceListing = {
+	'ldc' : True,
+	'ldc_w' : True,
+	'ldc2_w' : True,
+	'getstatic' : True,
+	'putstatic' : True,
+	'getfield' : True,
+	'putfield' : True,
+	'invokevirtual' : True,
+	'invokespecial' : True,
+	'invokestatic' : True,
+	'new' : True,
+	'anewarray' : True,
+	'checkcast' : True,
+	'instanceof' : True,
+}
+
 
 assemblyJumpListing = {
 	'ifeq' : True,
@@ -685,11 +702,13 @@ assemblyJumpListing = {
 
 
 class ClassBytecode(object):
-	def __init__(self, label_offsets=True, globalize_jumps=True):
+	def __init__(self, label_offsets=True, globalize_jumps=True, resolve_constants=False, classfile=None):
 		self.bytecode = ''
 		self.assembly = []
 		self.label_offsets = label_offsets
 		self.globalize_jumps = globalize_jumps
+		self.resolve_constants = resolve_constants
+		self.classfile = classfile
 	def decompile (self, bytecode):
 		# self.bytecode = bytecode
 		offset = 0
@@ -854,8 +873,10 @@ class ClassBytecode(object):
 				if self.assembly[offset] == 'wide':
 					offset = offset + 1
 			else:
-				if type(self.assembly[offset-1]) == str and self.assembly[offset-1] in assemblyJumpListing:
+				if type(self.assembly[offset-1]) == str and self.globalize_jumps and self.assembly[offset-1] in assemblyJumpListing:
 					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
+				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
+					code = code + ' #' + str(self.assembly[offset]) + '\t\t// ' + str(self.classfile.fileStructure['constants'][self.assembly[offset] - 1])
 				else:
 					code = code + ' ' + str(self.assembly[offset])
 			offset = offset + 1
