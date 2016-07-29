@@ -272,10 +272,10 @@ class ClassFileMethod(ClassFileObject):
 		elif variable_type == 6:
 			return ['ITEM_UninitializedThis'], data[1:]
 		elif variable_type == 7:
-			const = struct.unpack('>H', data[1:3])
+			const, = struct.unpack('>H', data[1:3])
 			return ['ITEM_Object', const], data[3:]
 		elif variable_type == 8:
-			offset = struct.unpack('>H', data[1:3])
+			offset, = struct.unpack('>H', data[1:3])
 			return ['ITEM_Uninitialized', offset], data[3:]
 		else:
 			raise Exception ("unknown variable type: "+str(variable_type))
@@ -299,10 +299,134 @@ class ClassFileMethod(ClassFileObject):
 
 		data += struct.pack('>H', codeStructure['attributes_count'])
 		for attribute in codeStructure['attributes']:
+			if attribute.nameIndex.string == 'StackMapTable':
+				data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
+				attribute.data = data
 			classfile.unlinkAttribute(attribute)
 			data += self.packAttribute(attribute)
 
 		attribute.data = data
+
+
+	def packStackFrame(self, stackframe):
+		# frame_type, = struct.unpack('>B', data[0:1])
+		# data = data[1:]
+		if stackframe['frame_type'] == 'same_frame':
+			return struct.pack('>B', stackframe['offset_delta'])
+		# if frame_type >= 0 and frame_type <= 63:
+			# return { 'frame_type' : 'same_frame', 'offset_delta' : frame_type }, data
+		elif stackframe['frame_type'] == 'same_locals_1_stack_item_frame':
+			return struct.pack('>B', stackframe['offset_delta'] + 64) + self.packStackTypeInfo(stackframe['stack'])
+		# elif frame_type >= 64 and frame_type <= 127:
+			# typeinfo, data = 
+			# return { 'frame_type' : 'same_locals_1_stack_item_frame', 'offset_delta' : , 'stack' : typeinfo }, data
+		elif stackframe['frame_type'] == 'same_locals_1_stack_item_frame_extended':
+			return struct.pack('>BH', 247, stackframe['offset_delta']) + self.packStackTypeInfo(stackframe['stack'])
+		# elif frame_type == 247:
+		# 	offset_delta, = struct.unpack('>H', data[0:2])
+		# 	data = data[2:]
+		# 	typeinfo, data = self.unpackStackTypeInfo(data)
+		# 	return { 'frame_type' : 'same_locals_1_stack_item_frame_extended', 'offset_delta' : offset_delta, 'stack' : typeinfo }, data
+		elif stackframe['frame_type'] == 'chop_frame':
+			return struct.pack('>BH', 251 - stackframe['locals_absent'], stackframe['offset_delta'])
+		# elif frame_type >= 248 and frame_type <= 250:
+		# 	offset_delta, = struct.unpack('>H', data[0:2])
+		# 	data = data[2:]
+		# 	locals_absent = 251 - frame_type
+		# 	return { 'frame_type' : 'chop_frame', 'offset_delta' : offset_delta, 'locals_absent' : locals_absent }, data
+		elif stackframe['frame_type'] == 'same_frame_extended':
+			return struct.pack('>BH', 251, stackframe['offset_delta'])
+		# elif frame_type == 251:
+		# 	offset_delta, = struct.unpack('>H', data[0:2])
+		# 	data = data[2:]
+		# 	return { 'frame_type' : 'same_frame_extended', 'offset_delta' : offset_delta }, data
+		elif stackframe['frame_type'] == 'append_frame':
+			return struct.pack('>BH', 251 + len(stackframe['stack']), stackframe['offset_delta']) +\
+					b''.join( self.packStackTypeInfo(typeinfo) for typeinfo in stackframe['stack'] )
+		# elif frame_type >= 252 and frame_type <= 254:
+		# 	offset_delta, = struct.unpack('>H', data[0:2])
+		# 	data = data[2:]
+		# 	locals_appended = frame_type - 251
+		# 	stack = []
+		# 	for i in range(locals_appended):
+		# 		typeinfo, data = self.unpackStackTypeInfo(data)
+		# 		stack.append(typeinfo)
+		# 	return {
+		# 		'frame_type' : 'append_frame',
+		# 		'offset_delta' : offset_delta,
+		# 		# 'locals_appended' : locals_appended,
+		# 		'stack' : stack,
+		# 	}, data
+		elif stackframe['frame_type'] == 'same_frame_extended':
+			return struct.pack('>BHH', 255, stackframe['offset_delta'], len(stackframe['locals_stack'])) +\
+					b''.join( self.packStackTypeInfo(typeinfo) for typeinfo in stackframe['locals_stack'] ) +\
+					struct.pack('>H', len(stackframe['stack'])) + b''.join( self.packStackTypeInfo(typeinfo) for typeinfo in stackframe['stack'] )
+		# elif frame_type == 255:
+			# offset_delta, number_of_locals = struct.unpack('>HH', data[0:4])
+			# data = data[4:]
+			# locals_stack = []
+			# for i in range(number_of_locals):
+			# 	typeinfo, data = self.unpackStackTypeInfo(data)
+			# 	locals_stack.append(typeinfo)
+			# number_of_stack, = struct.unpack('>H', data[0:2])
+			# data = data[2:]
+			# stack = []
+			# for i in range(number_of_stack):
+			# 	typeinfo, data = self.unpackStackTypeInfo(data)
+			# 	stack.append(typeinfo)
+			# return {
+			# 	'frame_type' : 'FULL_FRAME',
+			# 	'offset_delta' : offset_delta,
+			# 	# 'number_of_locals' : number_of_locals,
+			# 	'locals_stack' : locals_stack,
+			# 	# 'number_of_stack' : number_of_stack,
+			# 	'stack' : stack,
+			# }, data
+
+		else:
+			raise Exception ("invalid stack frame type: "+stackframe['frame_type'])
+
+	def packStackTypeInfo(self, typeinfo):
+		# variable_type, = struct.unpack('>B', data[0:1])
+		if typeinfo[0] == 'ITEM_Top':
+			return struct.pack('>B', 0)
+		elif typeinfo[0] == 'ITEM_Integer':
+			return struct.pack('>B', 1)
+		# elif variable_type == 1:
+		# 	return ['ITEM_Integer'], data[1:]
+		elif typeinfo[0] == 'ITEM_Float':
+			return struct.pack('>B', 2)
+		# elif variable_type == 2:
+		# 	return ['ITEM_Float'], data[1:]
+		elif typeinfo[0] == 'ITEM_Double':
+			return struct.pack('>B', 3)
+		# elif variable_type == 3:
+		# 	return ['ITEM_Double'], data[1:]
+		elif typeinfo[0] == 'ITEM_Long':
+			return struct.pack('>B', 4)
+		# elif variable_type == 4:
+		# 	return ['ITEM_Long'], data[1:]
+		elif typeinfo[0] == 'ITEM_Null':
+			return struct.pack('>B', 5)
+		# elif variable_type == 5:
+		# 	return ['ITEM_Null'], data[1:]
+		elif typeinfo[0] == 'ITEM_UninitializedThis':
+			return struct.pack('>B', 6)
+		# elif variable_type == 6:
+		# 	return ['ITEM_UninitializedThis'], data[1:]
+		elif typeinfo[0] == 'ITEM_Object':
+			# print (typeinfo[1])
+			return struct.pack('>BH', 7, typeinfo[1])
+		# elif variable_type == 7:
+		# 	const = struct.unpack('>H', data[1:3])
+		# 	return ['ITEM_Object', const], data[3:]
+		elif typeinfo[0] == 'ITEM_Uninitialized':
+			return struct.pack('>BH', 8, typeinfo[1])
+		# elif variable_type == 8:
+		# 	offset = struct.unpack('>H', data[1:3])
+		# 	return ['ITEM_Uninitialized', offset], data[3:]
+		else:
+			raise Exception ("unknown typeinfo type: "+str(typeinfo[0]))
 
 
 
