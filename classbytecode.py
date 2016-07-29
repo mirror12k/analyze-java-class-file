@@ -1,6 +1,10 @@
 
 
 
+import struct
+
+
+
 bytecode0ToAssembly = {
 	0x00 : 'nop',
 	0x01 : 'aconst_null',
@@ -434,229 +438,258 @@ assemblyToBytecode = {
 
 
 assemblyToSize = {
-'nop' : 1,
-'aconst_null' : 1,
-'iconst_m1' : 1,
-'iconst_0' : 1,
-'iconst_1' : 1,
-'iconst_2' : 1,
-'iconst_3' : 1,
-'iconst_4' : 1,
-'iconst_5' : 1,
-'lconst_0' : 1,
-'lconst_1' : 1,
-'fconst_0' : 1,
-'fconst_1' : 1,
-'fconst_2' : 1,
-'dconst_0' : 1,
-'dconst_1' : 1,
-'iload_0' : 1,
-'iload_1' : 1,
-'iload_2' : 1,
-'iload_3' : 1,
-'lload_0' : 1,
-'lload_1' : 1,
-'lload_2' : 1,
-'lload_3' : 1,
-'fload_0' : 1,
-'fload_1' : 1,
-'fload_2' : 1,
-'fload_3' : 1,
-'dload_0' : 1,
-'dload_1' : 1,
-'dload_2' : 1,
-'dload_3' : 1,
-'aload_0' : 1,
-'aload_1' : 1,
-'aload_2' : 1,
-'aload_3' : 1,
-'iaload' : 1,
-'laload' : 1,
-'faload' : 1,
-'daload' : 1,
-'aaload' : 1,
-'baload' : 1,
-'caload' : 1,
-'saload' : 1,
-'istore_0' : 1,
-'istore_1' : 1,
-'istore_2' : 1,
-'istore_3' : 1,
-'lstore_0' : 1,
-'lstore_1' : 1,
-'lstore_2' : 1,
-'lstore_3' : 1,
-'fstore_0' : 1,
-'fstore_1' : 1,
-'fstore_2' : 1,
-'fstore_3' : 1,
-'dstore_0' : 1,
-'dstore_1' : 1,
-'dstore_2' : 1,
-'dstore_3' : 1,
-'astore_0' : 1,
-'astore_1' : 1,
-'astore_2' : 1,
-'astore_3' : 1,
-'iastore' : 1,
-'lastore' : 1,
-'fastore' : 1,
-'dastore' : 1,
-'aastore' : 1,
-'bastore' : 1,
-'castore' : 1,
-'sastore' : 1,
-'pop' : 1,
-'pop2' : 1,
-'dup' : 1,
-'dup_x1' : 1,
-'dup_x2' : 1,
-'dup2' : 1,
-'dup2_x1' : 1,
-'dup2_x2' : 1,
-'swap' : 1,
-'iadd' : 1,
-'ladd' : 1,
-'fadd' : 1,
-'dadd' : 1,
-'isub' : 1,
-'lsub' : 1,
-'fsub' : 1,
-'dsub' : 1,
-'imul' : 1,
-'lmul' : 1,
-'fmul' : 1,
-'dmul' : 1,
-'idiv' : 1,
-'ldiv' : 1,
-'fdiv' : 1,
-'ddiv' : 1,
-'irem' : 1,
-'lrem' : 1,
-'frem' : 1,
-'drem' : 1,
-'ineg' : 1,
-'lneg' : 1,
-'fneg' : 1,
-'dneg' : 1,
-'ishl' : 1,
-'lshl' : 1,
-'ishr' : 1,
-'lshr' : 1,
-'iushr' : 1,
-'lushr' : 1,
-'iand' : 1,
-'land' : 1,
-'ior' : 1,
-'lor' : 1,
-'ixor' : 1,
-'lxor' : 1,
-'i2l' : 1,
-'i2f' : 1,
-'i2d' : 1,
-'l2i' : 1,
-'l2f' : 1,
-'l2d' : 1,
-'f2i' : 1,
-'f2l' : 1,
-'f2d' : 1,
-'d2i' : 1,
-'d2l' : 1,
-'d2f' : 1,
-'i2b' : 1,
-'i2c' : 1,
-'i2s' : 1,
-'lcmp' : 1,
-'fcmpl' : 1,
-'fcmpg' : 1,
-'dcmpl' : 1,
-'dcmpg' : 1,
-'ireturn' : 1,
-'lreturn' : 1,
-'freturn' : 1,
-'dreturn' : 1,
-'areturn' : 1,
-'return' : 1,
-'arraylength' : 1,
-'athrow' : 1,
-'monitorenter' : 1,
-'monitorexit' : 1,
-'breakpoint' : 1,
-'impdep1' : 1,
-'impdep2' : 1,
+	'nop' : 1,
+	'aconst_null' : 1,
+	'iconst_m1' : 1,
+	'iconst_0' : 1,
+	'iconst_1' : 1,
+	'iconst_2' : 1,
+	'iconst_3' : 1,
+	'iconst_4' : 1,
+	'iconst_5' : 1,
+	'lconst_0' : 1,
+	'lconst_1' : 1,
+	'fconst_0' : 1,
+	'fconst_1' : 1,
+	'fconst_2' : 1,
+	'dconst_0' : 1,
+	'dconst_1' : 1,
+	'iload_0' : 1,
+	'iload_1' : 1,
+	'iload_2' : 1,
+	'iload_3' : 1,
+	'lload_0' : 1,
+	'lload_1' : 1,
+	'lload_2' : 1,
+	'lload_3' : 1,
+	'fload_0' : 1,
+	'fload_1' : 1,
+	'fload_2' : 1,
+	'fload_3' : 1,
+	'dload_0' : 1,
+	'dload_1' : 1,
+	'dload_2' : 1,
+	'dload_3' : 1,
+	'aload_0' : 1,
+	'aload_1' : 1,
+	'aload_2' : 1,
+	'aload_3' : 1,
+	'iaload' : 1,
+	'laload' : 1,
+	'faload' : 1,
+	'daload' : 1,
+	'aaload' : 1,
+	'baload' : 1,
+	'caload' : 1,
+	'saload' : 1,
+	'istore_0' : 1,
+	'istore_1' : 1,
+	'istore_2' : 1,
+	'istore_3' : 1,
+	'lstore_0' : 1,
+	'lstore_1' : 1,
+	'lstore_2' : 1,
+	'lstore_3' : 1,
+	'fstore_0' : 1,
+	'fstore_1' : 1,
+	'fstore_2' : 1,
+	'fstore_3' : 1,
+	'dstore_0' : 1,
+	'dstore_1' : 1,
+	'dstore_2' : 1,
+	'dstore_3' : 1,
+	'astore_0' : 1,
+	'astore_1' : 1,
+	'astore_2' : 1,
+	'astore_3' : 1,
+	'iastore' : 1,
+	'lastore' : 1,
+	'fastore' : 1,
+	'dastore' : 1,
+	'aastore' : 1,
+	'bastore' : 1,
+	'castore' : 1,
+	'sastore' : 1,
+	'pop' : 1,
+	'pop2' : 1,
+	'dup' : 1,
+	'dup_x1' : 1,
+	'dup_x2' : 1,
+	'dup2' : 1,
+	'dup2_x1' : 1,
+	'dup2_x2' : 1,
+	'swap' : 1,
+	'iadd' : 1,
+	'ladd' : 1,
+	'fadd' : 1,
+	'dadd' : 1,
+	'isub' : 1,
+	'lsub' : 1,
+	'fsub' : 1,
+	'dsub' : 1,
+	'imul' : 1,
+	'lmul' : 1,
+	'fmul' : 1,
+	'dmul' : 1,
+	'idiv' : 1,
+	'ldiv' : 1,
+	'fdiv' : 1,
+	'ddiv' : 1,
+	'irem' : 1,
+	'lrem' : 1,
+	'frem' : 1,
+	'drem' : 1,
+	'ineg' : 1,
+	'lneg' : 1,
+	'fneg' : 1,
+	'dneg' : 1,
+	'ishl' : 1,
+	'lshl' : 1,
+	'ishr' : 1,
+	'lshr' : 1,
+	'iushr' : 1,
+	'lushr' : 1,
+	'iand' : 1,
+	'land' : 1,
+	'ior' : 1,
+	'lor' : 1,
+	'ixor' : 1,
+	'lxor' : 1,
+	'i2l' : 1,
+	'i2f' : 1,
+	'i2d' : 1,
+	'l2i' : 1,
+	'l2f' : 1,
+	'l2d' : 1,
+	'f2i' : 1,
+	'f2l' : 1,
+	'f2d' : 1,
+	'd2i' : 1,
+	'd2l' : 1,
+	'd2f' : 1,
+	'i2b' : 1,
+	'i2c' : 1,
+	'i2s' : 1,
+	'lcmp' : 1,
+	'fcmpl' : 1,
+	'fcmpg' : 1,
+	'dcmpl' : 1,
+	'dcmpg' : 1,
+	'ireturn' : 1,
+	'lreturn' : 1,
+	'freturn' : 1,
+	'dreturn' : 1,
+	'areturn' : 1,
+	'return' : 1,
+	'arraylength' : 1,
+	'athrow' : 1,
+	'monitorenter' : 1,
+	'monitorexit' : 1,
+	'breakpoint' : 1,
+	'impdep1' : 1,
+	'impdep2' : 1,
 
 
-'bipush' : 2,
-'ldc' : 2,
-'iload' : 2,
-'lload' : 2,
-'fload' : 2,
-'dload' : 2,
-'aload' : 2,
-'istore' : 2,
-'lstore' : 2,
-'fstore' : 2,
-'dstore' : 2,
-'astore' : 2,
-'ret' : 2,
-'newarray' : 2,
+	'bipush' : 2,
+	'ldc' : 2,
+	'iload' : 2,
+	'lload' : 2,
+	'fload' : 2,
+	'dload' : 2,
+	'aload' : 2,
+	'istore' : 2,
+	'lstore' : 2,
+	'fstore' : 2,
+	'dstore' : 2,
+	'astore' : 2,
+	'ret' : 2,
+	'newarray' : 2,
 
 
 
-'sipush' : 3,
-'ldc_w' : 3,
-'ldc2_w' : 3,
-'iinc' : 3,
-'ifeq' : 3,
-'ifne' : 3,
-'iflt' : 3,
-'ifge' : 3,
-'ifgt' : 3,
-'ifle' : 3,
-'if_icmpeq' : 3,
-'if_icmpne' : 3,
-'if_icmplt' : 3,
-'if_icmpge' : 3,
-'if_icmpgt' : 3,
-'if_icmple' : 3,
-'if_acmpeq' : 3,
-'if_acmpne' : 3,
-'goto' : 3,
-'jsr' : 3,
-'getstatic' : 3,
-'putstatic' : 3,
-'getfield' : 3,
-'putfield' : 3,
-'invokevirtual' : 3,
-'invokespecial' : 3,
-'invokestatic' : 3,
-'new' : 3,
-'anewarray' : 3,
-'checkcast' : 3,
-'instanceof' : 3,
-'ifnull' : 3,
-'ifnonnull' : 3,
+	'sipush' : 3,
+	'ldc_w' : 3,
+	'ldc2_w' : 3,
+	'iinc' : 3,
+	'ifeq' : 3,
+	'ifne' : 3,
+	'iflt' : 3,
+	'ifge' : 3,
+	'ifgt' : 3,
+	'ifle' : 3,
+	'if_icmpeq' : 3,
+	'if_icmpne' : 3,
+	'if_icmplt' : 3,
+	'if_icmpge' : 3,
+	'if_icmpgt' : 3,
+	'if_icmple' : 3,
+	'if_acmpeq' : 3,
+	'if_acmpne' : 3,
+	'goto' : 3,
+	'jsr' : 3,
+	'getstatic' : 3,
+	'putstatic' : 3,
+	'getfield' : 3,
+	'putfield' : 3,
+	'invokevirtual' : 3,
+	'invokespecial' : 3,
+	'invokestatic' : 3,
+	'new' : 3,
+	'anewarray' : 3,
+	'checkcast' : 3,
+	'instanceof' : 3,
+	'ifnull' : 3,
+	'ifnonnull' : 3,
 
 
-# 'tableswitch' : ?,
-# 'lookupswitch' : ?,
-'invokeinterface' : 5,
-'invokedynamic' : 5,
-# 'wide' : 3/5,
-'multianewarray' : 4,
-'goto_w' : 5,
-'jsr_w' : 5,
+	# 'tableswitch' : ?,
+	# 'lookupswitch' : ?,
+	'invokeinterface' : 5,
+	'invokedynamic' : 5,
+	# 'wide' : 3/5,
+	'multianewarray' : 4,
+	'goto_w' : 5,
+	'jsr_w' : 5,
 
 }
 
 
 
 
+assemblyJumpListing = {
+	'ifeq' : True,
+	'ifne' : True,
+	'iflt' : True,
+	'ifge' : True,
+	'ifgt' : True,
+	'ifle' : True,
+	'if_icmpeq' : True,
+	'if_icmpne' : True,
+	'if_icmplt' : True,
+	'if_icmpge' : True,
+	'if_icmpgt' : True,
+	'if_icmple' : True,
+	'if_acmpeq' : True,
+	'if_acmpne' : True,
+	'goto' : True,
+	'jsr' : True,
+	'ifnull' : True,
+	'ifnonnull' : True,
+}
+
+
+
+
+
+
+
+
 class ClassBytecode(object):
-	def __init__(self, label_offsets=True):
+	def __init__(self, label_offsets=True, globalize_jumps=True):
 		self.bytecode = ''
 		self.assembly = []
 		self.label_offsets = label_offsets
+		self.globalize_jumps = globalize_jumps
 	def decompile (self, bytecode):
 		# self.bytecode = bytecode
 		offset = 0
@@ -667,31 +700,38 @@ class ClassBytecode(object):
 				offset = offset + 1
 			elif bytecode1ToAssembly.get(c) is not None:
 				self.assembly.append(bytecode1ToAssembly[c])
-				self.assembly.append(ord(bytecode[offset + 1]))
+				self.assembly.append(struct.unpack('>B', bytecode[offset+1:offset+2])[0])
 				offset = offset + 2
 			elif bytecode2ToAssembly.get(c) is not None:
 				self.assembly.append(bytecode2ToAssembly[c])
 				if bytecode2ToAssembly[c] == 'iinc':
-					self.assembly.append(ord(bytecode[offset + 1]))
-					self.assembly.append(ord(bytecode[offset + 2]))
+					self.assembly.append(struct.unpack('>B', bytecode[offset+1:offset+2])[0])
+					self.assembly.append(struct.unpack('>B', bytecode[offset+2:offset+3])[0])
 				else:
-					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					if bytecode2ToAssembly[c] in assemblyJumpListing:
+						self.assembly.append(struct.unpack('>h', bytecode[offset+1:offset+3])[0])
+					else:
+						self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
 				offset = offset + 3
 			elif bytecodeOtherToAssembly.get(c) is not None:
 				instruction = bytecodeOtherToAssembly[c]
 				if instruction == 'goto_w' or instruction == 'jsr_w':
 					self.assembly.append(instruction)
-					self.assembly.append((ord(bytecode[offset + 1]) << 24) + (ord(bytecode[offset + 2]) << 16) +
-							(ord(bytecode[offset + 3]) << 8) + ord(bytecode[offset + 4]))
+					self.assembly.append(struct.unpack('>I', bytecode[offset+1:offset+5])[0])
+					# self.assembly.append((ord(bytecode[offset + 1]) << 24) + (ord(bytecode[offset + 2]) << 16) +
+					# 		(ord(bytecode[offset + 3]) << 8) + ord(bytecode[offset + 4]))
 					offset = offset + 5
 				elif instruction == 'invokedynamic':
 					self.assembly.append(instruction)
-					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
+					# self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
 					offset = offset + 5
 				elif instruction == 'invokeinterface':
 					self.assembly.append(instruction)
-					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
-					self.assembly.append(ord(bytecode[offset + 3]))
+					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
+					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
+					# self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					# self.assembly.append(ord(bytecode[offset + 3]))
 					offset = offset + 5
 				elif instruction == 'tableswitch':
 					raise Exception('unimplemented')
@@ -699,19 +739,24 @@ class ClassBytecode(object):
 					raise Exception('unimplemented')
 				elif instruction == 'multianewarray':
 					self.assembly.append(instruction)
-					self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
-					self.assembly.append(ord(bytecode[offset + 3]))
+					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
+					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
+					# self.assembly.append((ord(bytecode[offset + 1]) << 8) + ord(bytecode[offset + 2]))
+					# self.assembly.append(ord(bytecode[offset + 3]))
 					offset = offset + 4
 				elif instruction == 'wide':
 					c2 = ord(bytecode[offset + 1])
 					if c2 == 0x84: # iinc
 						self.assembly.append('iinc')
-						self.assembly.append((ord(bytecode[offset + 2]) << 8) + ord(bytecode[offset + 3]))
-						self.assembly.append((ord(bytecode[offset + 4]) << 8) + ord(bytecode[offset + 5]))
+						self.assembly.append(struct.unpack('>H', bytecode[offset+2:offset+4])[0])
+						self.assembly.append(struct.unpack('>H', bytecode[offset+4:offset+6])[0])
+						# self.assembly.append((ord(bytecode[offset + 2]) << 8) + ord(bytecode[offset + 3]))
+						# self.assembly.append((ord(bytecode[offset + 4]) << 8) + ord(bytecode[offset + 5]))
 						offset = offset + 6
 					elif bytecode1ToAssembly.get(c2) is not None:
 						self.assembly.append(bytecode1ToAssembly[c2])
-						self.assembly.append((ord(bytecode[offset + 2]) << 8) + ord(bytecode[offset + 3]))
+						self.assembly.append(struct.unpack('>H', bytecode[offset+2:offset+4])[0])
+						# self.assembly.append((ord(bytecode[offset + 2]) << 8) + ord(bytecode[offset + 3]))
 						offset = offset + 4
 					else:
 						raise Exception('invalid wide bytecode:' + str(c))
@@ -790,6 +835,7 @@ class ClassBytecode(object):
 
 		offset = 0
 		bytecodeOffset = 0
+		lastBytecodeOffset = bytecodeOffset
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str:
 				if self.assembly[offset] == 'wide':
@@ -803,11 +849,16 @@ class ClassBytecode(object):
 					code = code + str(bytecodeOffset) + ':\t'
 				code = code + inst
 
+				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
-				offset = offset + 2
+				if self.assembly[offset] == 'wide':
+					offset = offset + 1
 			else:
-				code = code + ' ' + str(self.assembly[offset])
-				offset = offset + 1
+				if type(self.assembly[offset-1]) == str and self.assembly[offset-1] in assemblyJumpListing:
+					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
+				else:
+					code = code + ' ' + str(self.assembly[offset])
+			offset = offset + 1
 
 		return code
 
