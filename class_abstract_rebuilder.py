@@ -176,6 +176,70 @@ def methodDescriptorToCode(desc):
 	return (argtypes, rettype)
 
 
+def indentCode(code):
+	return '\n'.join([ '\t' + line for line in code.split('\n') ])
+
+
+class AbstractClassRebuilder(object):
+	def __init__(self, filepath, opts={}):
+		self.file = classfile.openFile(filepath)
+		self.opts = {
+			'abstract_all' : opts.get('abstract_all', False),
+		}
+	def stringClass(self):
+		text = ''
+
+		text = text + classAccessFlagsToCode(self.file.fileStructure['access_flags']) + ' class ' + classConstantToName(self.file.fileStructure['this_class']) +\
+				' extends ' + classConstantToName(self.file.fileStructure['super_class']) + ' {\n'
+
+		for field in self.file.fileStructure['fields']:
+			text = text + '\t' + self.stringField(field) + '\n'
+			
+
+		if len(self.file.fileStructure['fields']) > 0:
+			text = text + '\n'
+
+
+		for method in self.file.fileStructure['methods']:
+			text = text + indentCode(self.stringMethod(method)) + '\n'
+
+		text = text + '}\n'
+
+		return text
+
+	def stringMethod(self, method):
+		text = ''
+
+		argtypes, rettype = methodDescriptorToCode(method.descriptorIndex.string)
+		methodname = method.nameIndex.string
+
+		if self.opts['abstract_all']:
+			if 'ACC_ABSTRACT' not in method.accessFlags:
+				text = text + 'abstract '
+
+
+		if methodname == '<clinit>':
+			text = text + methodAccessFlagsToCode(method.accessFlags)
+		else:
+			if methodname == '<init>':
+				methodname = classConstantToSimpleName(self.file.fileStructure['this_class'])
+
+			text = text + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
+					' (' + ', '.join(argtypes) + ')'
+
+		if self.opts['abstract_all']:
+			text = text + ';'
+		else:
+			text = text + ' {\n'
+			text = text + '\t// code ...\n'
+			text = text + '}'
+
+		return text
+
+	def stringField(self, field):
+		name = field.nameIndex.string
+		typestr = typeToCode(field.descriptorIndex.string)
+		return fieldAccessFlagsToCode(field.accessFlags) + ' ' + typestr + ' ' + name + ';'
 
 
 
@@ -184,39 +248,9 @@ def main(args):
 	if len(args) == 0:
 		print("argument required")
 	else:
-		file = classfile.openFile(args[0])
+		rebuilder = AbstractClassRebuilder(args[0])
 
-		classDeclaration = classAccessFlagsToCode(file.fileStructure['access_flags']) + ' class ' + classConstantToName(file.fileStructure['this_class']) +\
-				' extends ' + classConstantToName(file.fileStructure['super_class'])
-
-		print classDeclaration + ' {'
-
-
-		for field in file.fileStructure['fields']:
-			name = field.nameIndex.string
-			typestr = typeToCode(field.descriptorIndex.string)
-			print '\t' + fieldAccessFlagsToCode(field.accessFlags) + ' ' + typestr + ' ' + name + ';'
-
-		print ''
-
-		for method in file.fileStructure['methods']:
-			argtypes, rettype = methodDescriptorToCode(method.descriptorIndex.string)
-			methodname = method.nameIndex.string
-
-			if methodname == '<clinit>':
-				print '\t' + methodAccessFlagsToCode(method.accessFlags) + ' {'
-				print '\t\t// code ...'
-				print '\t}'
-			else:
-				if methodname == '<init>':
-					methodname = classConstantToSimpleName(file.fileStructure['this_class'])
-
-				print '\t' + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
-						' (' + ', '.join(argtypes) + ') {'
-				print '\t\t// code ...'
-				print '\t}'
-
-		print '}'
+		print rebuilder.stringClass()
 
 
 
