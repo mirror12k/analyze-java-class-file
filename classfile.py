@@ -2,7 +2,7 @@
 import struct
 
 
-constantTagNames = {
+constantTagTypeToTagName = {
 	1 : 'CONSTANT_Utf8',
 	3 : 'CONSTANT_Integer',
 	4 : 'CONSTANT_Float',
@@ -20,10 +20,57 @@ constantTagNames = {
 }
 
 
+constantTagNameToTagType = {
+	'CONSTANT_Utf8' : 1,
+	'CONSTANT_Integer' : 3,
+	'CONSTANT_Float' : 4,
+	'CONSTANT_Long' : 5,
+	'CONSTANT_Double' : 6,
+	'CONSTANT_Class' : 7,
+	'CONSTANT_String' : 8,
+	'CONSTANT_Fieldref' : 9,
+	'CONSTANT_Methodref' : 10,
+	'CONSTANT_InterfaceMethodref' : 11,
+	'CONSTANT_NameAndType' : 12,
+	'CONSTANT_MethodHandle' : 15,
+	'CONSTANT_MethodType' : 16,
+	'CONSTANT_InvokeDynamic' : 18,
+}
+
+
+
+
+def createConstant(consttype, *args):
+	const = ClassFileConstant(constantTagNameToTagType[consttype], True)
+
+	if consttype == 'CONSTANT_Class':
+		self.classname = args[0]
+	elif consttype == 'CONSTANT_String':
+		self.string = args[0]
+	elif consttype == 'CONSTANT_Methodref' or consttype == 'CONSTANT_Fieldref' or consttype == 'CONSTANT_InterfaceMethodref':
+		self.classname = args[0]
+		self.methodname = args[1]
+		self.methodtype = args[2]
+	elif consttype == 'CONSTANT_NameAndType':
+		self.name = args[0]
+		self.descriptor = args[1]
+	elif consttype == 'CONSTANT_Utf8':
+		self.string = args[0]
+	elif consttype == 'CONSTANT_Integer' or consttype == 'CONSTANT_Float' or consttype == 'CONSTANT_Long' or consttype == 'CONSTANT_Double':
+		self.value = args[0]
+	else:
+		raise Exception ("unknown tag type: ", self.tagName)
+
+	return const
+
+
+
+
+
 class ClassFileConstant(object):
-	def __init__(self, tagType):
+	def __init__(self, tagType, inlined=False):
 		self.tagType = tagType
-		self.tagName = constantTagNames[tagType]
+		self.tagName = constantTagTypeToTagName[tagType]
 
 		self.nameIndex = None
 		self.descriptorIndex = None
@@ -35,6 +82,8 @@ class ClassFileConstant(object):
 		self.referenceKind = None
 		self.referenceIndex = None
 		self.bootstrapIndex = None
+
+		self.inlined = inlined
 	def link(self, classfile):
 		if self.tagName == 'CONSTANT_Class':
 			self.nameIndex = classfile.constantFromIndex(self.nameIndex, 'CONSTANT_Utf8')
@@ -67,50 +116,107 @@ class ClassFileConstant(object):
 			pass
 		else:
 			raise Exception ("unknown tag type: ", self.tagName)
+
+	def inline(self):
+		if self.tagName == 'CONSTANT_Class':
+			self.classname = self.nameIndex.string
+		elif self.tagName == 'CONSTANT_String':
+			self.string = self.stringIndex.string
+		elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
+			self.classname = self.classIndex.nameIndex.string
+			self.methodname = self.nameAndTypeIndex.nameIndex.string
+			self.methodtype = self.nameAndTypeIndex.descriptorIndex.string
+		elif self.tagName == 'CONSTANT_NameAndType':
+			self.name = self.nameIndex.string
+			self.descriptor = self.descriptorIndex.string
+		elif self.tagName == 'CONSTANT_Utf8' or self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+			or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
+			pass
+		else:
+			raise Exception ("unknown tag type: ", self.tagName)
+
 	def __str__(self):
-		s = 'C<'+self.tagName+'>('
-		if self.nameIndex is not None:
-			s += 'nameIndex=' + str(self.nameIndex) + ','
-		if self.descriptorIndex is not None:
-			s += 'descriptorIndex=' + str(self.descriptorIndex) + ','
-		if self.classIndex is not None:
-			s += 'classIndex=' + str(self.classIndex) + ','
-		if self.nameAndTypeIndex is not None:
-			s += 'nameAndTypeIndex=' + str(self.nameAndTypeIndex) + ','
-		if self.stringIndex is not None:
-			s += 'stringIndex=' + str(self.stringIndex) + ','
-		if self.value is not None:
-			s += 'value=' + str(self.value) + ','
-		if self.string is not None:
-			s += 'string="' + str(self.string) + '",'
-		if self.referenceKind is not None:
-			s += 'referenceKind=' + str(self.referenceKind) + ','
-		if self.referenceIndex is not None:
-			s += 'referenceIndex=' + str(self.referenceIndex) + ','
-		s += ')'
-		return s
+		if self.inlined:
+			s = 'C<'+self.tagName+'>('
+			if consttype == 'CONSTANT_Class':
+				s += '"' + self.classname + '"'
+			elif consttype == 'CONSTANT_String':
+				s += '"' + self.string + '"'
+			elif consttype == 'CONSTANT_Methodref' or consttype == 'CONSTANT_Fieldref' or consttype == 'CONSTANT_InterfaceMethodref':
+				s += '"' + self.classname + '", "' + self.methodname + '", "' + self.methodtype + '"'
+			elif consttype == 'CONSTANT_NameAndType':
+				s += '"' + self.name + '", "' + self.descriptor + '"'
+			elif consttype == 'CONSTANT_Utf8':
+				s += '"' + self.string + '"'
+			elif consttype == 'CONSTANT_Integer' or consttype == 'CONSTANT_Float' or consttype == 'CONSTANT_Long' or consttype == 'CONSTANT_Double':
+				s += str(self.value)
+			else:
+				raise Exception ("unknown tag type: ", self.tagName)
+			s += ')'
+			return s
+
+		else:
+			s = 'C<'+self.tagName+'>('
+			if self.nameIndex is not None:
+				s += 'nameIndex=' + str(self.nameIndex) + ','
+			if self.descriptorIndex is not None:
+				s += 'descriptorIndex=' + str(self.descriptorIndex) + ','
+			if self.classIndex is not None:
+				s += 'classIndex=' + str(self.classIndex) + ','
+			if self.nameAndTypeIndex is not None:
+				s += 'nameAndTypeIndex=' + str(self.nameAndTypeIndex) + ','
+			if self.stringIndex is not None:
+				s += 'stringIndex=' + str(self.stringIndex) + ','
+			if self.value is not None:
+				s += 'value=' + str(self.value) + ','
+			if self.string is not None:
+				s += 'string="' + str(self.string) + '",'
+			if self.referenceKind is not None:
+				s += 'referenceKind=' + str(self.referenceKind) + ','
+			if self.referenceIndex is not None:
+				s += 'referenceIndex=' + str(self.referenceIndex) + ','
+			s += ')'
+			return s
 	def __eq__(self, other):
 		if not isinstance(other, ClassFileConstant):
 			return False
 		else:
 			if self.tagType != other.tagType:
 				return False
+			elif self.inlined != other.inlined:
+				return False
 			else:
-				if self.tagName == 'CONSTANT_Utf8':
-					return self.string == other.string
-				elif self.tagName == 'CONSTANT_Class':
-					return self.nameIndex == other.nameIndex
-				elif self.tagName == 'CONSTANT_String':
-					return self.stringIndex == other.stringIndex
-				elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
-					return self.classIndex == other.classIndex and self.nameAndTypeIndex == other.nameAndTypeIndex
-				elif self.tagName == 'CONSTANT_NameAndType':
-					return self.nameIndex == other.nameIndex and self.descriptorIndex == other.descriptorIndex
-				elif self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
-						or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
-					return self.value == other.value
+				if self.inlined:
+					if consttype == 'CONSTANT_Class':
+						return self.classname == other.classname
+					elif consttype == 'CONSTANT_String':
+						return self.string == other.string
+					elif consttype == 'CONSTANT_Methodref' or consttype == 'CONSTANT_Fieldref' or consttype == 'CONSTANT_InterfaceMethodref':
+						return self.classname == other.classname and self.methodname == other.methodname and self.methodtype == other.methodtype
+					elif consttype == 'CONSTANT_NameAndType':
+						return self.name == other.name and self.descriptor == other.descriptor
+					elif consttype == 'CONSTANT_Utf8':
+						return self.string == other.string
+					elif consttype == 'CONSTANT_Integer' or consttype == 'CONSTANT_Float' or consttype == 'CONSTANT_Long' or consttype == 'CONSTANT_Double':
+						return self.value == other.value
+					else:
+						raise Exception ("unknown tag type: ", self.tagName)
 				else:
-					raise Exception("unknown constant type: " + self.tagName)
+					if self.tagName == 'CONSTANT_Utf8':
+						return self.string == other.string
+					elif self.tagName == 'CONSTANT_Class':
+						return self.nameIndex == other.nameIndex
+					elif self.tagName == 'CONSTANT_String':
+						return self.stringIndex == other.stringIndex
+					elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
+						return self.classIndex == other.classIndex and self.nameAndTypeIndex == other.nameAndTypeIndex
+					elif self.tagName == 'CONSTANT_NameAndType':
+						return self.nameIndex == other.nameIndex and self.descriptorIndex == other.descriptorIndex
+					elif self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+							or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
+						return self.value == other.value
+					else:
+						raise Exception("unknown constant type: " + self.tagName)
 
 
 
