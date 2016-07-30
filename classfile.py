@@ -316,6 +316,21 @@ class ClassFileField(ClassFileObject):
 
 		for attribute in self.attributes:
 			attribute.unlink(classfile)
+
+	def inline(self):
+		self.name = self.nameIndex.string
+		self.descriptor = self.descriptorIndex.string
+
+		for attribute in self.attributes:
+			attribute.inline()
+
+	def uninline(self, classfile):
+		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
+		self.descriptorIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.descriptor))
+
+		for attribute in self.attributes:
+			attribute.uninline(classfile)
+
 	def __str__(self):
 		return 'ClassFileField(accessFlags='+str(self.accessFlags)+\
 			',nameIndex='+str(self.nameIndex)+\
@@ -401,6 +416,34 @@ class ClassFileMethod(ClassFileObject):
 
 		for attribute in self.attributes:
 			attribute.unlink(classfile)
+
+
+	def inline(self):
+		self.name = self.nameIndex.string
+		self.descriptor = self.descriptorIndex.string
+
+		for attribute in self.attributes:
+			attribute.inline()
+
+		for exception in self.codeStructure['exception_table']:
+			exception['catch_type'] = exception['catch_type'].nameIndex.string
+
+		for attribute in self.codeStructure['attributes']:
+			attribute.inline()
+
+	def uninline(self, classfile):
+		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
+		self.descriptorIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.descriptor))
+
+		for attribute in self.attributes:
+			attribute.uninline(classfile)
+
+		for exception in self.codeStructure['exception_table']:
+			exception['catch_type'] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', exception['catch_type']))
+
+		for attribute in self.codeStructure['attributes']:
+			attribute.uninline(classfile)
+
 
 	def unpackCodeAttribute(self, classfile):
 		attribute = self.getAttributeByName('Code')
@@ -718,6 +761,10 @@ class ClassFileAttribute(object):
 		self.nameIndex = classfile.constantFromIndex(self.nameIndex, 'CONSTANT_Utf8')
 	def unlink(self, classfile):
 		self.nameIndex = classfile.constantToIndex(self.nameIndex, 'CONSTANT_Utf8')
+	def inline(self):
+		self.name = self.nameIndex.string
+	def uninline(self, classfile):
+		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
 	def __str__(self):
 		return 'ClassFileAttribute(nameIndex='+str(self.nameIndex)+')'
 
@@ -848,7 +895,7 @@ class ClassFile(object):
 
 		# additional processing
 		self.linkClass()
-		self.inlineConstants()
+		self.inline()
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -917,7 +964,7 @@ class ClassFile(object):
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
 	def packClassFile(self):
-		self.uninlineConstants()
+		self.uninline()
 		self.unlinkClass()
 
 		self.handle = open(self.filepath, 'wb')
@@ -1099,13 +1146,28 @@ class ClassFile(object):
 			const.unlink(self)
 
 
-	def inlineConstants(self):
+	def inline(self):
 		for const in self.constants:
 			const.inline()
 		for const in self.constants:
 			const.setInlined(True)
 
-	def uninlineConstants(self):
+		for field in self.fields:
+			field.inline()
+		for method in self.methods:
+			method.inline()
+		for attribute in self.attributes:
+			attribute.inline()
+
+	def uninline(self):
+
+		for field in self.fields:
+			field.uninline(self)
+		for method in self.methods:
+			method.uninline(self)
+		for attribute in self.attributes:
+			attribute.uninline(self)
+			
 		for const in self.constants:
 			const.uninline(self)
 		for const in self.constants:
