@@ -13,25 +13,25 @@ def main():
 		print("argument required")
 	else:
 		file = classfile.openFile(sys.argv[1])
-		pprint.pprint(file.fileStructure)
+		# pprint.pprint(file.fileStructure)
 		print ("class constants:")
-		for const in file.fileStructure['constants']:
+		for const in file.constants:
 			print ("\t", const)
 		print ("class fields:")
-		for field in file.fileStructure['fields']:
+		for field in file.fields:
 			print ("\t", field)
 		print ("class methods:")
-		for method in file.fileStructure['methods']:
+		for method in file.methods:
 			print ("\t", method)
 			if 'stackmap' in method.codeStructure:
 				pprint.pprint(method.codeStructure['stackmap'])
 		print ("class attributes:")
-		for attr in file.fileStructure['attributes']:
+		for attr in file.attributes:
 			print ("\t", attr)
 
 		c = classfile.ClassFileConstant(1)
 		c.string = 'java/lang/System'
-		if c in file.fileStructure['constants']:
+		if c in file.constants:
 			print ("present!")
 
 		# for const in file.fileStructure['constants']:

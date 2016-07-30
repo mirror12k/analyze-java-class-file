@@ -234,30 +234,30 @@ class AbstractClassRebuilder(object):
 	def stringClass(self):
 		text = ''
 
-		if classConstantToPackageName(self.file.fileStructure['this_class']) is not None:
-			text = text + 'package ' + classConstantToPackageName(self.file.fileStructure['this_class']) + ';\n'
+		if classConstantToPackageName(self.file.this_class) is not None:
+			text = text + 'package ' + classConstantToPackageName(self.file.this_class) + ';\n'
 
 		if self.opts['render_abstract']:
-			if 'ACC_ABSTRACT' not in self.file.fileStructure['access_flags']:
+			if 'ACC_ABSTRACT' not in self.file.access_flags:
 				text = text + 'abstract '
 
-		text = text + classAccessFlagsToCode(self.file.fileStructure['access_flags']) + ' class ' + classConstantToName(self.file.fileStructure['this_class']) +\
-				' extends ' + classConstantToName(self.file.fileStructure['super_class']) + ' {\n'
+		text = text + classAccessFlagsToCode(self.file.access_flags) + ' class ' + classConstantToSimpleName(self.file.this_class) +\
+				' extends ' + classConstantToName(self.file.super_class) + ' {\n'
 
-		if len(self.file.fileStructure['fields']) > 0:
+		if len(self.file.fields) > 0:
 			text = text + '\t// fields\n'
 
-		for field in self.file.fileStructure['fields']:
+		for field in self.file.fields:
 			text = text + '\t' + self.stringField(field) + '\n'
 			
-		if len(self.file.fileStructure['fields']) > 0:
+		if len(self.file.fields) > 0:
 			text = text + '\n'
 
 
-		if len(self.file.fileStructure['methods']) > 0:
+		if len(self.file.methods) > 0:
 			text = text + '\t// methods\n'
 
-		for method in self.file.fileStructure['methods']:
+		for method in self.file.methods:
 			text = text + indentCode(self.stringMethod(method)) + '\n'
 
 		text = text + '}\n'
@@ -271,7 +271,9 @@ class AbstractClassRebuilder(object):
 		methodname = method.nameIndex.string
 
 		if self.opts['render_abstract']:
-			if 'ACC_ABSTRACT' not in method.accessFlags:
+			if 'ACC_STATIC' in method.accessFlags or methodname == '<clinit>' or methodname == '<init>':
+				text = text + '// '
+			elif 'ACC_ABSTRACT' not in method.accessFlags:
 				text = text + 'abstract '
 
 
@@ -279,7 +281,7 @@ class AbstractClassRebuilder(object):
 			text = text + methodAccessFlagsToCode(method.accessFlags)
 		else:
 			if methodname == '<init>':
-				methodname = classConstantToSimpleName(self.file.fileStructure['this_class'])
+				methodname = classConstantToSimpleName(self.file.this_class)
 
 			text = text + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
 					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'

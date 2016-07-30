@@ -180,7 +180,7 @@ class ClassFileMethod(ClassFileObject):
 				stackmap = attribute
 
 		if stackmap is not None:
-			print ("got stackmap: ", str(stackmap), str(stackmap.data))
+			# print ("got stackmap: ", str(stackmap), str(stackmap.data))
 			data = stackmap.data
 			frame_count, = struct.unpack('>H', data[:2])
 			data = data[2:]
@@ -469,9 +469,9 @@ class ClassFile(object):
 
 
 	def constantFromIndex(self, index, constType='*'):
-		if index < 1 or index > len(self.fileStructure['constants']):
+		if index < 1 or index > len(self.constants):
 			raise Exception('out-of-bounds constant index '+str(index)+' for constType "'+constType+'"')
-		const = self.fileStructure['constants'][index - 1]
+		const = self.constants[index - 1]
 		if constType != '*' and const.tagName != constType:
 			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'"')
 		return const
@@ -479,7 +479,7 @@ class ClassFile(object):
 	def constantToIndex(self, const, constType='*'):
 		if constType != '*' and const.tagName != constType:
 			raise Exception('invalid constant type: "'+const.tagName+'" (expected "'+constType+'"')
-		index = self.fileStructure['constants'].index(const) + 1
+		index = self.constants.index(const) + 1
 		return index
 
 
@@ -529,14 +529,29 @@ class ClassFile(object):
 		fileStructure['attributes'] = [ self.unpackAttribute() for _ in range(fileStructure['attributes_count']) ]
 
 
-		self.fileStructure = fileStructure
+		# self.fileStructure = fileStructure
 		self.handle.close()
+
+
+		self.constants = fileStructure['constants']
+		self.interfaces = fileStructure['interfaces']
+		self.fields = fileStructure['fields']
+		self.methods = fileStructure['methods']
+		self.attributes = fileStructure['attributes']
+
+		self.magic = fileStructure['magic']
+		self.version_major = fileStructure['version_major']
+		self.version_minor = fileStructure['version_minor']
+
+		self.access_flags = fileStructure['access_flags']
+		self.this_class = fileStructure['this_class']
+		self.super_class = fileStructure['super_class']
 
 		self.linkClass()
 
 	def linkClass(self):
 		flags = []
-		code = self.fileStructure['access_flags']
+		code = self.access_flags
 		if code & 0x0001: # Declared public; may be accessed from outside its package.
 			flags.append('ACC_PUBLIC')
 		if code & 0x0010: # Declared final; no subclasses allowed.
@@ -553,25 +568,25 @@ class ClassFile(object):
 			flags.append('ACC_ANNOTATION')
 		if code & 0x4000: # Declared as an enum type.
 			flags.append('ACC_ENUM')
-		self.fileStructure['access_flags'] = flags
+		self.access_flags = flags
 
-		self.fileStructure['this_class'] = self.constantFromIndex(self.fileStructure['this_class'], 'CONSTANT_Class')
-		self.fileStructure['super_class'] = self.constantFromIndex(self.fileStructure['super_class'], 'CONSTANT_Class')
+		self.this_class = self.constantFromIndex(self.this_class, 'CONSTANT_Class')
+		self.super_class = self.constantFromIndex(self.super_class, 'CONSTANT_Class')
 
-		self.fileStructure['interfaces'] = [ self.constantFromIndex(index, 'CONSTANT_Class') for index in self.fileStructure['interfaces'] ]
+		self.interfaces = [ self.constantFromIndex(index, 'CONSTANT_Class') for index in self.interfaces ]
 
 		self.linkClassConstants()
 
-		for field in self.fileStructure['fields']:
+		for field in self.fields:
 			self.linkField(field)
 
-		for method in self.fileStructure['methods']:
+		for method in self.methods:
 			self.linkMethod(method)
 
-		for attribute in self.fileStructure['attributes']:
+		for attribute in self.attributes:
 			self.linkAttribute(attribute)
 
-		for method in self.fileStructure['methods']:
+		for method in self.methods:
 			method.unpackCodeAttribute(self)
 
 	def linkField(self, field):
@@ -642,8 +657,7 @@ class ClassFile(object):
 		attribute.nameIndex = self.constantFromIndex(attribute.nameIndex, 'CONSTANT_Utf8')
 
 	def linkClassConstants(self):
-		consts = self.fileStructure['constants']
-		for const in consts:
+		for const in self.constants:
 			const.link(self)
 
 	def unpackConstant(self):
@@ -717,29 +731,29 @@ class ClassFile(object):
 
 		self.handle = open(self.filepath, 'wb')
 
-		data = struct.pack('>4sHHH', self.fileStructure['magic'], self.fileStructure['version_minor'], self.fileStructure['version_major'], self.fileStructure['const_count'])
+		data = struct.pack('>4sHHH', self.magic, self.version_minor, self.version_major, len(self.constants) + 1)
 		self.handle.write(data)
 		
-		for const in self.fileStructure['constants']:
+		for const in self.constants:
 			if const is not None:
 				self.handle.write(self.packConstant(const))
 		
-		data = struct.pack('>HHHH', self.fileStructure['access_flags'], self.fileStructure['this_class'], self.fileStructure['super_class'], self.fileStructure['interface_count'])
+		data = struct.pack('>HHHH', self.access_flags, self.this_class, self.super_class, len(self.interfaces))
 		self.handle.write(data)
 
-		for interface in self.fileStructure['interfaces']:
+		for interface in self.interfaces:
 			self.handle.write(struct.pack('>H', interface))
 
-		self.handle.write(struct.pack('>H', self.fileStructure['fields_count']))
-		for field in self.fileStructure['fields']:
+		self.handle.write(struct.pack('>H', len(self.fields)))
+		for field in self.fields:
 			self.handle.write(self.packField(field))
 
-		self.handle.write(struct.pack('>H', self.fileStructure['methods_count']))
-		for method in self.fileStructure['methods']:
+		self.handle.write(struct.pack('>H', len(self.methods)))
+		for method in self.methods:
 			self.handle.write(self.packMethod(method))
 
-		self.handle.write(struct.pack('>H', self.fileStructure['attributes_count']))
-		for attribute in self.fileStructure['attributes']:
+		self.handle.write(struct.pack('>H', len(self.attributes)))
+		for attribute in self.attributes:
 			self.handle.write(self.packAttribute(attribute))
 
 		self.handle.close()
@@ -799,22 +813,22 @@ class ClassFile(object):
 
 	def unlinkClass(self):
 
-		for method in self.fileStructure['methods']:
+		for method in self.methods:
 			method.packCodeAttribute(self)
 
 
 
-		for field in self.fileStructure['fields']:
+		for field in self.fields:
 			self.unlinkField(field)
 
-		for method in self.fileStructure['methods']:
+		for method in self.methods:
 			self.unlinkMethod(method)
 
-		for attribute in self.fileStructure['attributes']:
+		for attribute in self.attributes:
 			self.unlinkAttribute(attribute)
 
 
-		flags = self.fileStructure['access_flags']
+		flags = self.access_flags
 		code = 0
 		for flag in flags:
 			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
@@ -835,18 +849,18 @@ class ClassFile(object):
 				code |= 0x4000
 			else:
 				raise Exception('invalid flag for file.access_flags:'+flag)
-		self.fileStructure['access_flags'] = code
+		self.access_flags = code
 
-		self.fileStructure['this_class'] = self.constantToIndex(self.fileStructure['this_class'], 'CONSTANT_Class')
-		self.fileStructure['super_class'] = self.constantToIndex(self.fileStructure['super_class'], 'CONSTANT_Class')
+		self.this_class = self.constantToIndex(self.this_class, 'CONSTANT_Class')
+		self.super_class = self.constantToIndex(self.super_class, 'CONSTANT_Class')
 
 		indexes = []
-		for interface in self.fileStructure['interfaces']:
+		for interface in self.interfaces:
 			if interface.tagName != 'CONSTANT_Class':
 				raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
-			const = self.fileStructure['constants'][index - 1]
-			indexes.append(self.fileStructure['constants'].index(interface) + 1)
-		self.fileStructure['interfaces'] = indexes
+			const = self.constants[index - 1]
+			indexes.append(self.constants.index(interface) + 1)
+		self.interfaces = indexes
 
 		self.unlinkClassConstants()
 
@@ -922,7 +936,7 @@ class ClassFile(object):
 
 
 	def unlinkClassConstants(self):
-		consts = self.fileStructure['constants']
+		consts = self.constants
 		for const in consts:
 			const.unlink(self)
 

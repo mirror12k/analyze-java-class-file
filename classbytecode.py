@@ -866,7 +866,7 @@ class ClassBytecode(object):
 					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
 				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
 					code = code + ' #' + str(self.assembly[offset]) + '\t\t// ' +\
-							class_abstract_rebuilder.stringConstantSimple(self.classfile.fileStructure['constants'][self.assembly[offset] - 1])
+							class_abstract_rebuilder.stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
 				else:
 					code = code + ' ' + str(self.assembly[offset])
 			offset = offset + 1
