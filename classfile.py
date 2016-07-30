@@ -44,22 +44,22 @@ def createConstant(consttype, *args):
 	const = ClassFileConstant(constantTagNameToTagType[consttype], True)
 
 	if consttype == 'CONSTANT_Class':
-		self.classname = args[0]
+		const.classname = args[0]
 	elif consttype == 'CONSTANT_String':
-		self.string = args[0]
+		const.string = args[0]
 	elif consttype == 'CONSTANT_Methodref' or consttype == 'CONSTANT_Fieldref' or consttype == 'CONSTANT_InterfaceMethodref':
-		self.classname = args[0]
-		self.methodname = args[1]
-		self.methodtype = args[2]
+		const.classname = args[0]
+		const.methodname = args[1]
+		const.methodtype = args[2]
 	elif consttype == 'CONSTANT_NameAndType':
-		self.name = args[0]
-		self.descriptor = args[1]
+		const.name = args[0]
+		const.descriptor = args[1]
 	elif consttype == 'CONSTANT_Utf8':
-		self.string = args[0]
+		const.string = args[0]
 	elif consttype == 'CONSTANT_Integer' or consttype == 'CONSTANT_Float' or consttype == 'CONSTANT_Long' or consttype == 'CONSTANT_Double':
-		self.value = args[0]
+		const.value = args[0]
 	else:
-		raise Exception ("unknown tag type: ", self.tagName)
+		raise Exception ("unknown tag type: ", consttype)
 
 	return const
 
@@ -135,20 +135,41 @@ class ClassFileConstant(object):
 		else:
 			raise Exception ("unknown tag type: ", self.tagName)
 
+	def uninline(self, classfile):
+		if self.tagName == 'CONSTANT_Class':
+			self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.classname))
+		elif self.tagName == 'CONSTANT_String':
+			self.stringIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.string))
+		elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
+			self.classIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', self.classname))
+			self.nameAndTypeIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_NameAndType', self.methodname, self.methodtype))
+		elif self.tagName == 'CONSTANT_NameAndType':
+			self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
+			self.descriptorIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.descriptor))
+		elif self.tagName == 'CONSTANT_Utf8' or self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+			or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
+			pass
+		else:
+			raise Exception ("unknown tag type: ", self.tagName)
+		
+	def setInlined(self, inlined=True):
+		self.inlined = inlined
+
 	def __str__(self):
 		if self.inlined:
 			s = 'C<'+self.tagName+'>('
-			if consttype == 'CONSTANT_Class':
+			if self.tagName == 'CONSTANT_Class':
 				s += '"' + self.classname + '"'
-			elif consttype == 'CONSTANT_String':
+			elif self.tagName == 'CONSTANT_String':
 				s += '"' + self.string + '"'
-			elif consttype == 'CONSTANT_Methodref' or consttype == 'CONSTANT_Fieldref' or consttype == 'CONSTANT_InterfaceMethodref':
+			elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
 				s += '"' + self.classname + '", "' + self.methodname + '", "' + self.methodtype + '"'
-			elif consttype == 'CONSTANT_NameAndType':
+			elif self.tagName == 'CONSTANT_NameAndType':
 				s += '"' + self.name + '", "' + self.descriptor + '"'
-			elif consttype == 'CONSTANT_Utf8':
+			elif self.tagName == 'CONSTANT_Utf8':
 				s += '"' + self.string + '"'
-			elif consttype == 'CONSTANT_Integer' or consttype == 'CONSTANT_Float' or consttype == 'CONSTANT_Long' or consttype == 'CONSTANT_Double':
+			elif self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+					or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
 				s += str(self.value)
 			else:
 				raise Exception ("unknown tag type: ", self.tagName)
@@ -187,17 +208,18 @@ class ClassFileConstant(object):
 				return False
 			else:
 				if self.inlined:
-					if consttype == 'CONSTANT_Class':
+					if self.tagName == 'CONSTANT_Class':
 						return self.classname == other.classname
-					elif consttype == 'CONSTANT_String':
+					elif self.tagName == 'CONSTANT_String':
 						return self.string == other.string
-					elif consttype == 'CONSTANT_Methodref' or consttype == 'CONSTANT_Fieldref' or consttype == 'CONSTANT_InterfaceMethodref':
+					elif self.tagName == 'CONSTANT_Methodref' or self.tagName == 'CONSTANT_Fieldref' or self.tagName == 'CONSTANT_InterfaceMethodref':
 						return self.classname == other.classname and self.methodname == other.methodname and self.methodtype == other.methodtype
-					elif consttype == 'CONSTANT_NameAndType':
+					elif self.tagName == 'CONSTANT_NameAndType':
 						return self.name == other.name and self.descriptor == other.descriptor
-					elif consttype == 'CONSTANT_Utf8':
+					elif self.tagName == 'CONSTANT_Utf8':
 						return self.string == other.string
-					elif consttype == 'CONSTANT_Integer' or consttype == 'CONSTANT_Float' or consttype == 'CONSTANT_Long' or consttype == 'CONSTANT_Double':
+					elif self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float' or\
+							self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
 						return self.value == other.value
 					else:
 						raise Exception ("unknown tag type: ", self.tagName)
@@ -589,6 +611,13 @@ class ClassFile(object):
 		return index
 
 
+	def getSetInlinedConstant(self, const):
+		try:
+			index = self.constants.index(const)
+			return self.constants[index]
+		except ValueError:
+			self.constants.append(const)
+			return const
 
 
 
@@ -653,7 +682,10 @@ class ClassFile(object):
 		self.this_class = fileStructure['this_class']
 		self.super_class = fileStructure['super_class']
 
+
+		# additional processing
 		self.linkClass()
+		self.inlineConstants()
 
 	def linkClass(self):
 		flags = []
@@ -833,6 +865,7 @@ class ClassFile(object):
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
 	def packClassFile(self):
+		self.uninlineConstants()
 		self.unlinkClass()
 
 		self.handle = open(self.filepath, 'wb')
@@ -1042,10 +1075,21 @@ class ClassFile(object):
 
 
 	def unlinkClassConstants(self):
-		consts = self.constants
-		for const in consts:
+		for const in self.constants:
 			const.unlink(self)
 
+
+	def inlineConstants(self):
+		for const in self.constants:
+			const.inline()
+		for const in self.constants:
+			const.setInlined(True)
+
+	def uninlineConstants(self):
+		for const in self.constants:
+			const.uninline(self)
+		for const in self.constants:
+			const.setInlined(False)
 
 
 

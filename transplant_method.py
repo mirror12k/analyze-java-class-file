@@ -32,14 +32,13 @@ def main(args):
 			# recipientClass.fileStructure['methods'].append(method)
 
 
-	c = classfile.ClassFileConstant(1)
-	c.string = 'this is an injected constant'
+	# c = classfile.createConstant('CONSTANT_Utf8', 'this is another injected constant!')
 
-	recipientClass.constants.append(c)
+	# recipientClass.constants.append(c)
 
-	# for const in donorClass.fileStructure['constants']:
-	# 	if const not in recipientClass.fileStructure['constants']:
-	# 		recipientClass.fileStructure['constants'].append(const)
+	for const in donorClass.constants:
+		if const not in recipientClass.constants:
+			recipientClass.constants.append(const)
 
 	recipientClass.packClassFile()
 

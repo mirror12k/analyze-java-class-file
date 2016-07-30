@@ -13,6 +13,8 @@ def main():
 		print("argument required")
 	else:
 		file = classfile.openFile(sys.argv[1])
+
+
 		# pprint.pprint(file.fileStructure)
 		print ("class constants:")
 		for const in file.constants:
@@ -29,10 +31,11 @@ def main():
 		for attr in file.attributes:
 			print ("\t", attr)
 
-		c = classfile.ClassFileConstant(1)
-		c.string = 'java/lang/System'
+		c = classfile.createConstant('CONSTANT_Class', 'java/lang/System')
 		if c in file.constants:
 			print ("present!")
+
+
 
 		# for const in file.fileStructure['constants']:
 		# 	if const.tagName == 'CONSTANT_Utf8' and const.string == 'helloworld!':
