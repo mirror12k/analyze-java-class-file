@@ -230,6 +230,7 @@ class AbstractClassRebuilder(object):
 		self.opts = {
 			'render_abstract' : opts.get('render_abstract', False),
 			'decompile_bytecode' : opts.get('decompile_bytecode', False),
+			'link_bytecode' : opts.get('link_bytecode', False),
 		}
 	def stringClass(self):
 		text = ''
@@ -291,8 +292,10 @@ class AbstractClassRebuilder(object):
 		else:
 			text = text + ' {\n'
 			if self.opts['decompile_bytecode']:
-				bc = classbytecode.ClassBytecode(resolve_constants=True, classfile=self.file)
+				bc = classbytecode.ClassBytecode(resolve_constants=not self.opts['link_bytecode'], classfile=self.file)
 				bc.decompile(method.codeStructure['code'])
+				if self.opts['link_bytecode']:
+					bc.linkAssembly(self.file)
 				text = text + indentCode(bc.stringAssembly()) + '\n'
 			else:
 				text = text + '\t// code ...\n'
@@ -314,10 +317,12 @@ def main(args):
 	else:
 		opts = {}
 		for arg in args:
-			if arg == '--render_abstract':
+			if arg == '--render_abstract' or arg == '-abs':
 				opts['render_abstract'] = True
-			elif arg == '--decompile_bytecode':
+			elif arg == '--decompile_bytecode' or arg =='-db':
 				opts['decompile_bytecode'] = True
+			elif arg == '--link_bytecode' or arg == '-lb':
+				opts['link_bytecode'] = True
 			else:
 				rebuilder = AbstractClassRebuilder(arg, opts)
 				print (rebuilder.stringClass())

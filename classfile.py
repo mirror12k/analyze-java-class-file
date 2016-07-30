@@ -607,7 +607,10 @@ class ClassFile(object):
 	def constantToIndex(self, const, constType='*'):
 		if constType != '*' and const.tagName != constType:
 			raise Exception('invalid constant type: "'+const.tagName+'" (expected "'+constType+'"')
-		index = self.constants.index(const) + 1
+		try:
+			index = self.constants.index(const) + 1
+		except ValueError:
+			raise Exception("attempt to get index from missing constant: "+str(const))
 		return index
 
 

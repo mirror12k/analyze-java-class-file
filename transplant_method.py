@@ -5,6 +5,7 @@
 import sys
 
 import classfile
+import classbytecode
 import class_abstract_rebuilder
 
 
@@ -25,20 +26,28 @@ def main(args):
 		print ("incorrect super_class:", class_abstract_rebuilder.stringConstantSimple(recipientClass.super_class), ' vs ',
 				class_abstract_rebuilder.stringConstantSimple(donorClass.super_class))
 
+	for const in donorClass.constants:
+		if const not in recipientClass.constants:
+			print("transplanting constant:", const)
+			recipientClass.constants.append(const)
+
 	for method in donorClass.methods:
 		if 'ACC_ABSTRACT' not in method.accessFlags and method.nameIndex.string != '<init>':
 			print ("transplanting method", class_abstract_rebuilder.stringConstantSimple(method.nameIndex))
 			
-			# recipientClass.fileStructure['methods'].append(method)
+			bc = classbytecode.ClassBytecode()
+			bc.decompile(method.codeStructure['code'])
+			bc.linkAssembly(donorClass)
+			bc.unlinkAssembly(recipientClass)
+			bc.compile()
+			method.codeStructure['code'] = bc.bytecode
+
+			recipientClass.methods.append(method)
 
 
 	# c = classfile.createConstant('CONSTANT_Utf8', 'this is another injected constant!')
 
 	# recipientClass.constants.append(c)
-
-	for const in donorClass.constants:
-		if const not in recipientClass.constants:
-			recipientClass.constants.append(const)
 
 	recipientClass.packClassFile()
 

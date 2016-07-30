@@ -707,6 +707,7 @@ class ClassBytecode(object):
 	def __init__(self, label_offsets=True, globalize_jumps=True, resolve_constants=False, classfile=None):
 		self.bytecode = ''
 		self.assembly = []
+
 		self.label_offsets = label_offsets
 		self.globalize_jumps = globalize_jumps
 		self.resolve_constants = resolve_constants
@@ -718,11 +719,11 @@ class ClassBytecode(object):
 			c = bytecode[offset]
 			if bytecode0ToAssembly.get(c) is not None:
 				self.assembly.append(bytecode0ToAssembly[c])
-				offset = offset + 1
+				offset += 1
 			elif bytecode1ToAssembly.get(c) is not None:
 				self.assembly.append(bytecode1ToAssembly[c])
 				self.assembly.append(struct.unpack('>B', bytecode[offset+1:offset+2])[0])
-				offset = offset + 2
+				offset += 2
 			elif bytecode2ToAssembly.get(c) is not None:
 				self.assembly.append(bytecode2ToAssembly[c])
 				if bytecode2ToAssembly[c] == 'iinc':
@@ -733,22 +734,22 @@ class ClassBytecode(object):
 						self.assembly.append(struct.unpack('>h', bytecode[offset+1:offset+3])[0])
 					else:
 						self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
-				offset = offset + 3
+				offset += 3
 			elif bytecodeOtherToAssembly.get(c) is not None:
 				instruction = bytecodeOtherToAssembly[c]
 				if instruction == 'goto_w' or instruction == 'jsr_w':
 					self.assembly.append(instruction)
 					self.assembly.append(struct.unpack('>i', bytecode[offset+1:offset+5])[0])
-					offset = offset + 5
+					offset += 5
 				elif instruction == 'invokedynamic':
 					self.assembly.append(instruction)
 					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
-					offset = offset + 5
+					offset += 5
 				elif instruction == 'invokeinterface':
 					self.assembly.append(instruction)
 					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
 					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
-					offset = offset + 5
+					offset += 5
 				elif instruction == 'tableswitch':
 					raise Exception('unimplemented')
 				elif instruction == 'lookupswitch':
@@ -757,18 +758,18 @@ class ClassBytecode(object):
 					self.assembly.append(instruction)
 					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
 					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
-					offset = offset + 4
+					offset += 4
 				elif instruction == 'wide':
 					c2 = ord(bytecode[offset + 1])
 					if c2 == 0x84: # iinc
 						self.assembly.append('iinc')
 						self.assembly.append(struct.unpack('>H', bytecode[offset+2:offset+4])[0])
 						self.assembly.append(struct.unpack('>H', bytecode[offset+4:offset+6])[0])
-						offset = offset + 6
+						offset += 6
 					elif bytecode1ToAssembly.get(c2) is not None:
 						self.assembly.append(bytecode1ToAssembly[c2])
 						self.assembly.append(struct.unpack('>H', bytecode[offset+2:offset+4])[0])
-						offset = offset + 4
+						offset += 4
 					else:
 						raise Exception('invalid wide bytecode:' + str(c))
 
@@ -790,7 +791,7 @@ class ClassBytecode(object):
 			if assemblyToBytecode.get(assembly[index]) is not None:
 				code = assemblyToBytecode[assembly[index]]
 				if bytecode0ToAssembly.get(code) is not None:
-					bytecode = bytecode + chr(code)
+					bytecode = bytecode + bytes(code)
 					index = index + 1
 				elif bytecode1ToAssembly.get(code) is not None:
 					bytecode = bytecode + struct.pack('>BB', code, assembly[index + 1])
@@ -860,7 +861,7 @@ class ClassBytecode(object):
 				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
 				if self.assembly[offset] == 'wide':
-					offset = offset + 1
+					offset += 1
 			else:
 				if type(self.assembly[offset-1]) == str and self.globalize_jumps and self.assembly[offset-1] in assemblyJumpListing:
 					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
@@ -869,7 +870,7 @@ class ClassBytecode(object):
 							class_abstract_rebuilder.stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
 				else:
 					code = code + ' ' + str(self.assembly[offset])
-			offset = offset + 1
+			offset += 1
 
 		return code
 
@@ -887,6 +888,23 @@ class ClassBytecode(object):
 			raise Exception('unimplemented')
 		else:
 			raise Exception('unknown assembly: '+self.assembly[offset])
+
+	def linkAssembly(self, classfile):
+		offset = 0
+		while offset < len(self.assembly):
+			if type(self.assembly[offset]) == str and self.assembly[offset] in assemblyConstantReferenceListing:
+				offset += 1
+				self.assembly[offset] = classfile.constantFromIndex(self.assembly[offset])
+			offset += 1
+
+	def unlinkAssembly(self, classfile):
+		offset = 0
+		while offset < len(self.assembly):
+			if type(self.assembly[offset]) == str and self.assembly[offset] in assemblyConstantReferenceListing:
+				offset += 1
+				self.assembly[offset] = classfile.constantToIndex(self.assembly[offset])
+			offset += 1
+
 
 
 
