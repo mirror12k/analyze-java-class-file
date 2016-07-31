@@ -15,7 +15,8 @@ import classbytecode
 
 
 
-
+# converts a constant to a simple to understand string describing it
+# different from the output of str(const)
 def stringConstantSimple(const):
 	if const.tagName == 'CONSTANT_Utf8':
 		return '"' + const.string + '"'
@@ -34,12 +35,12 @@ def stringConstantSimple(const):
 
 
 
-
+# converts a stored classname to a standard java class name
 def classNameToCode(classname):
 	return classname.replace('/', '.')
 
 
-
+# safely converts a class constant to the java class name
 def classConstantToName(const):
 	if const.tagName != 'CONSTANT_Class':
 		raise Exception('classConstantToName called with non-class constant: ' + str(const))
@@ -51,6 +52,7 @@ def classConstantToName(const):
 
 	return classNameToCode(name.string)
 
+# safely converts a class constant to the simple java class name (excludes the package)
 def classConstantToSimpleName(const):
 	if const.tagName != 'CONSTANT_Class':
 		raise Exception('classConstantToSimpleName called with non-class constant: ' + str(const))
@@ -66,6 +68,7 @@ def classConstantToSimpleName(const):
 	else:
 		return code[code.rfind('.')+1:]
 
+# safely converts a class constant to the simple java class package (excludes the class name)
 def classConstantToPackageName(const):
 	if const.tagName != 'CONSTANT_Class':
 		raise Exception('classConstantToPackageName called with non-class constant: ' + str(const))
@@ -82,6 +85,7 @@ def classConstantToPackageName(const):
 		return code[:code.rfind('.')]
 
 
+# converts the list of class access flags to a java code string describing the access
 def classAccessFlagsToCode(flags):
 	newflags = []
 	for flag in flags:
@@ -107,6 +111,7 @@ def classAccessFlagsToCode(flags):
 			raise Exception('invalid flag in class access flags: '+flag)
 	return ' '.join(newflags)
 
+# converts the list of field access flags to a java code string describing the access
 def fieldAccessFlagsToCode(flags):
 	newflags = []
 	for flag in flags:
@@ -134,6 +139,7 @@ def fieldAccessFlagsToCode(flags):
 
 
 
+# converts the list of method access flags to a java code string describing the access
 def methodAccessFlagsToCode(flags):
 	newflags = []
 	for flag in flags:
@@ -182,6 +188,7 @@ letterTypeToCode = {
 }
 
 	
+# converts the packed type string to a java code type
 def typeToCode(typestr):
 	arraydepth = 0
 	while typestr[0] == '[':
@@ -193,6 +200,7 @@ def typeToCode(typestr):
 	else:
 		return letterTypeToCode[typestr] + ('[]' * arraydepth)
 
+# converts the packed method descriptor string to a tuple of a list of argument types (java code format) and a return type (java code format)
 def methodDescriptorToCode(desc):
 	if desc[0] != '(':
 		raise Exception('invalid method description: '+desc)
@@ -219,9 +227,11 @@ def methodDescriptorToCode(desc):
 
 	return (argtypes, rettype)
 
-
+# indents every line in  the give code text with count number of tabs
 def indentCode(code, count=1):
 	return '\n'.join([ '\t' * count + line for line in code.split('\n') ])
+
+
 
 
 class AbstractClassRebuilder(object):
@@ -230,10 +240,15 @@ class AbstractClassRebuilder(object):
 		self.file.linkClassFile()
 		self.file.inlineClassFile()
 		self.opts = {
+			# attempts to output an abstract hull of the class, turning all methods to abstract (commenting out ones that can't be abstract)
 			'render_abstract' : opts.get('render_abstract', False),
+			# uses classbytecode module to disassemble the bytecode
 			'decompile_bytecode' : opts.get('decompile_bytecode', False),
+			# tells the classbytecode module to link the constants of class file when disassembling instead of displaying constant numbers
 			'link_bytecode' : opts.get('link_bytecode', False),
 		}
+
+	# converts the given class file to a rough java code string
 	def stringClass(self):
 		text = ''
 
@@ -267,12 +282,14 @@ class AbstractClassRebuilder(object):
 
 		return text
 
+	# converts the given class method to a rough java code method string
 	def stringMethod(self, method):
 		text = ''
 
 		argtypes, rettype = methodDescriptorToCode(method.descriptorIndex.string)
 		methodname = method.nameIndex.string
 
+		# too many optional cases here, i wish i could clean this up
 		if self.opts['render_abstract']:
 			if 'ACC_STATIC' in method.accessFlags or methodname == '<clinit>' or methodname == '<init>':
 				text = text + '// '
@@ -305,6 +322,7 @@ class AbstractClassRebuilder(object):
 
 		return text
 
+	# converts the given class field to a rough java code field string
 	def stringField(self, field):
 		name = field.nameIndex.string
 		typestr = typeToCode(field.descriptorIndex.string)
@@ -313,7 +331,7 @@ class AbstractClassRebuilder(object):
 
 
 
-def main(args):
+def main(*args):
 	if len(args) == 0:
 		print("argument required")
 	else:
@@ -333,4 +351,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-	main(sys.argv[1:])
+	main(*sys.argv[1:])

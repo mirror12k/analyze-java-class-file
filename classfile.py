@@ -39,7 +39,8 @@ constantTagNameToTagType = {
 
 
 
-
+# quick method for easily creating an inlined constant
+# arguments differ based on what constant type it is
 def createConstant(consttype, *args):
 	const = ClassFileConstant(constantTagNameToTagType[consttype], True)
 
@@ -66,7 +67,7 @@ def createConstant(consttype, *args):
 
 
 
-
+# represents a class file constant
 class ClassFileConstant(object):
 	def __init__(self, tagType, inlined=False):
 		self.tagType = tagType
@@ -728,9 +729,6 @@ class ClassFileMethod(ClassFileObject):
 		else:
 			raise Exception ("unknown typeinfo type: "+str(typeinfo[0]))
 
-
-
-
 	def unpackAttribute(self, data):
 		attributeNameIndex, attributeLength = struct.unpack('>HI', data[:6])
 		attributeData = data[6 : 6 + attributeLength]
@@ -739,7 +737,6 @@ class ClassFileMethod(ClassFileObject):
 		data = struct.pack('>HI', attribute.nameIndex, len(attribute.data))
 		data += attribute.data
 		return data
-
 
 	def __str__(self):
 		return 'ClassFileMethod(accessFlags='+str(self.accessFlags)+\
@@ -808,7 +805,8 @@ class ClassFile(object):
 		self.packClassFile(filepath)
 
 
-
+	# takes a class-file format constant index and returns the given constant
+	# the constType option allows safely retrieving a specific type of constant
 	def constantFromIndex(self, index, constType='*'):
 		if index < 1 or index > len(self.constants):
 			raise Exception('out-of-bounds constant index '+str(index)+' for constType "'+constType+'"')
@@ -817,6 +815,8 @@ class ClassFile(object):
 			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'")')
 		return const
 
+	# takes a constant object and retrieves the associated class-file format index
+	# the constType option allows safely storing a specific type of constant
 	def constantToIndex(self, const, constType='*'):
 		if constType != '*' and const.tagName != constType:
 			raise Exception('invalid constant type: "'+const.tagName+'" (expected "'+constType+'"')
@@ -826,7 +826,7 @@ class ClassFile(object):
 			raise Exception("attempt to get index from missing constant: "+str(const))
 		return index
 
-
+	# returns an equivalent constant or stores the given constant if an equivalent isn't found and returns it
 	def getSetInlinedConstant(self, const):
 		try:
 			index = self.constants.index(const)
@@ -840,10 +840,12 @@ class ClassFile(object):
 	def unpackClassFile(self, filepath):
 		self.handle = open(filepath, 'rb')
 
+		# read the file header
 		data = self.handle.read(10)
 		fileStructure = {}
 		fileStructure['magic'], fileStructure['version_minor'], fileStructure['version_major'], fileStructure['const_count'] = struct.unpack('>4sHHH', data)
 		
+		# extract the constants
 		constants = []
 		for i in range(1, fileStructure['const_count']):
 			const = self.unpackConstant()
@@ -857,33 +859,39 @@ class ClassFile(object):
 				
 		fileStructure['constants'] = constants
 
+		# more header data
 		data = self.handle.read(8)
 		fileStructure['access_flags'], fileStructure['this_class'], fileStructure['super_class'], fileStructure['interface_count'] = struct.unpack('>HHHH', data)
 
+		# extract interface indicies
 		fileStructure['interfaces'] = []
 		for _ in range(fileStructure['interface_count']):
 			data = self.handle.read(2)
 			index, = struct.unpack('>H', data)
 			fileStructure['interfaces'].append(index)
 
+		# extract fields
 		data = self.handle.read(2)
 		fileStructure['fields_count'], = struct.unpack('>H', data)
 		fileStructure['fields'] = [ self.unpackField() for _ in range(fileStructure['fields_count']) ]
 
 
+		# extract methods
 		data = self.handle.read(2)
 		fileStructure['methods_count'], = struct.unpack('>H', data)
 		fileStructure['methods'] = [ self.unpackMethod() for _ in range(fileStructure['methods_count']) ]
 
+		# extract attributes
 		data = self.handle.read(2)
 		fileStructure['attributes_count'], = struct.unpack('>H', data)
 		fileStructure['attributes'] = [ self.unpackAttribute() for _ in range(fileStructure['attributes_count']) ]
 
-
+		# used to store everything in fileStructure, but it's more efficient to store everything in instance variables
 		# self.fileStructure = fileStructure
 		self.handle.close()
 
 
+		# transfer all the necessary data
 		self.constants = fileStructure['constants']
 		self.interfaces = fileStructure['interfaces']
 		self.fields = fileStructure['fields']
@@ -972,27 +980,34 @@ class ClassFile(object):
 	def packClassFile(self, filepath):
 		self.handle = open(filepath, 'wb')
 
+		# pack header
 		data = struct.pack('>4sHHH', self.magic, self.version_minor, self.version_major, len(self.constants) + 1)
 		self.handle.write(data)
 		
+		# pack constants
 		for const in self.constants:
 			if const is not None:
 				self.handle.write(self.packConstant(const))
 		
+		# pack more header
 		data = struct.pack('>HHHH', self.access_flags, self.this_class, self.super_class, len(self.interfaces))
 		self.handle.write(data)
 
+		# pack interface indicies
 		for interface in self.interfaces:
 			self.handle.write(struct.pack('>H', interface))
 
+		# pack fields
 		self.handle.write(struct.pack('>H', len(self.fields)))
 		for field in self.fields:
 			self.handle.write(self.packField(field))
 
+		# pack methods
 		self.handle.write(struct.pack('>H', len(self.methods)))
 		for method in self.methods:
 			self.handle.write(self.packMethod(method))
 
+		# pack attributes
 		self.handle.write(struct.pack('>H', len(self.attributes)))
 		for attribute in self.attributes:
 			self.handle.write(self.packAttribute(attribute))
@@ -1050,7 +1065,9 @@ class ClassFile(object):
 		data += attribute.data
 		return data
 
-	def linkClassFile(self):
+
+
+	def unpackAccessFlags(self):
 		flags = []
 		code = self.access_flags
 		if code & 0x0001: # Declared public; may be accessed from outside its package.
@@ -1070,6 +1087,34 @@ class ClassFile(object):
 		if code & 0x4000: # Declared as an enum type.
 			flags.append('ACC_ENUM')
 		self.access_flags = flags
+
+	def packAccessFlags(self):
+		flags = self.access_flags
+		code = 0
+		for flag in flags:
+			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
+				code |= 0x0001
+			elif flag == 'ACC_FINAL': # Declared final; no subclasses allowed.
+				code |= 0x0010
+			elif flag == 'ACC_SUPER': # Treat superclass methods specially when invoked by the invokespecial instruction.
+				code |= 0x0020
+			elif flag == 'ACC_INTERFACE': # Is an interface, not a class.
+				code |= 0x0200
+			elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
+				code |= 0x0400
+			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
+				code |= 0x1000
+			elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
+				code |= 0x2000
+			elif flag == 'ACC_ENUM': # Declared as an enum type.
+				code |= 0x4000
+			else:
+				raise Exception('invalid flag for file.access_flags:'+flag)
+		self.access_flags = code
+
+
+	def linkClassFile(self):
+		self.unpackAccessFlags()
 
 		self.this_class = self.constantFromIndex(self.this_class, 'CONSTANT_Class')
 		self.super_class = self.constantFromIndex(self.super_class, 'CONSTANT_Class')
@@ -1099,8 +1144,6 @@ class ClassFile(object):
 		for method in self.methods:
 			method.packCodeAttribute(self)
 
-
-
 		for field in self.fields:
 			field.unlink(self)
 
@@ -1111,39 +1154,18 @@ class ClassFile(object):
 			attribute.unlink(self)
 
 
-		flags = self.access_flags
-		code = 0
-		for flag in flags:
-			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
-				code |= 0x0001
-			elif flag == 'ACC_FINAL': # Declared final; no subclasses allowed.
-				code |= 0x0010
-			elif flag == 'ACC_SUPER': # Treat superclass methods specially when invoked by the invokespecial instruction.
-				code |= 0x0020
-			elif flag == 'ACC_INTERFACE': # Is an interface, not a class.
-				code |= 0x0200
-			elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
-				code |= 0x0400
-			elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-				code |= 0x1000
-			elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
-				code |= 0x2000
-			elif flag == 'ACC_ENUM': # Declared as an enum type.
-				code |= 0x4000
-			else:
-				raise Exception('invalid flag for file.access_flags:'+flag)
-		self.access_flags = code
+		self.packAccessFlags()
 
 		self.this_class = self.constantToIndex(self.this_class, 'CONSTANT_Class')
 		self.super_class = self.constantToIndex(self.super_class, 'CONSTANT_Class')
 
-		indexes = []
-		for interface in self.interfaces:
-			if interface.tagName != 'CONSTANT_Class':
-				raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
-			const = self.constants[index - 1]
-			indexes.append(self.constants.index(interface) + 1)
-		self.interfaces = indexes
+		# indexes = []
+		# for interface in self.interfaces:
+		# 	if interface.tagName != 'CONSTANT_Class':
+		# 		raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
+		# 	const = self.constants[index - 1]
+		# 	indexes.append(self.constants.index(interface) + 1)
+		self.interfaces = [ self.constantToIndex(interface, 'CONSTANT_Class') for interface in self.interfaces ]
 
 		for const in self.constants:
 			const.unlink(self)
