@@ -705,7 +705,7 @@ assemblyJumpListing = {
 
 class ClassBytecode(object):
 	def __init__(self, label_offsets=True, globalize_jumps=True, resolve_constants=False, classfile=None):
-		self.bytecode = ''
+		self.bytecode = b''
 		self.assembly = []
 
 		self.label_offsets = label_offsets
@@ -713,7 +713,7 @@ class ClassBytecode(object):
 		self.resolve_constants = resolve_constants
 		self.classfile = classfile
 	def decompile (self, bytecode):
-		# self.bytecode = bytecode
+		self.bytecode = bytecode
 		offset = 0
 		while offset < len(bytecode):
 			c = bytecode[offset]
@@ -791,45 +791,45 @@ class ClassBytecode(object):
 			if assemblyToBytecode.get(assembly[index]) is not None:
 				code = assemblyToBytecode[assembly[index]]
 				if bytecode0ToAssembly.get(code) is not None:
-					bytecode = bytecode + bytes(code)
-					index = index + 1
+					bytecode += struct.pack('>B', code)
+					index += 1
 				elif bytecode1ToAssembly.get(code) is not None:
-					bytecode = bytecode + struct.pack('>BB', code, assembly[index + 1])
-					index = index + 2
+					bytecode += struct.pack('>BB', code, assembly[index + 1])
+					index += 2
 				elif bytecode2ToAssembly.get(code) is not None:
 					if assembly[index] == 'iinc':
-						bytecode = bytecode + struct.pack('>BBB', code, assembly[index + 1], assembly[index + 2])
-						index = index + 3
+						bytecode += struct.pack('>BBB', code, assembly[index + 1], assembly[index + 2])
+						index += 3
 					elif assembly[index] in assemblyJumpListing:
-						bytecode = bytecode + struct.pack('>Bh', code, assembly[index + 1])
-						index = index + 2
+						bytecode += struct.pack('>Bh', code, assembly[index + 1])
+						index += 2
 					else:
-						bytecode = bytecode + struct.pack('>BH', code, assembly[index + 1])
-						index = index + 2
+						bytecode += struct.pack('>BH', code, assembly[index + 1])
+						index += 2
 				elif bytecodeOtherToAssembly.get(code) is not None:
 					if assembly[index] == 'goto_w' or assembly[index] == 'jsr_w':
-						bytecode = bytecode + struct.pack('>Bi', code, assembly[index + 1])
-						index = index + 2
+						bytecode += struct.pack('>Bi', code, assembly[index + 1])
+						index += 2
 					elif assembly[index] == 'invokedynamic':
-						bytecode = bytecode + struct.pack('>BHBB', code, assembly[index + 1], 0 ,0)
-						index = index + 2
+						bytecode += struct.pack('>BHBB', code, assembly[index + 1], 0 ,0)
+						index += 2
 					elif assembly[index] == 'invokeinterface':
-						bytecode = bytecode + struct.pack('>BHBB', code, assembly[index + 1], assembly[index + 2], 0)
-						index = index + 3
+						bytecode += struct.pack('>BHBB', code, assembly[index + 1], assembly[index + 2], 0)
+						index += 3
 					elif assembly[index] == 'tableswitch':
 						raise Exception('unimplemented')
 					elif assembly[index] == 'lookupswitch':
 						raise Exception('unimplemented')
 					elif assembly[index] == 'multianewarray':
-						bytecode = bytecode + struct.pack('>BHB', code, assembly[index + 1], assembly[index + 2]) 
-						index = index + 3
+						bytecode += struct.pack('>BHB', code, assembly[index + 1], assembly[index + 2]) 
+						index += 3
 					elif assembly[index] == 'wide':
 						if assembly[index + 1] == 'iinc':
-							bytecode = bytecode + struct.pack('>BHH', assemblyToBytecode[assembly[index + 1]], assembly[index + 2], assembly[index + 3])
-							index = index + 4
+							bytecode += struct.pack('>BHH', assemblyToBytecode[assembly[index + 1]], assembly[index + 2], assembly[index + 3])
+							index += 4
 						else:
-							bytecode = bytecode + struct.pack('>BH', assemblyToBytecode[assembly[index + 1]], assembly[index + 2])
-							index = index + 3
+							bytecode += struct.pack('>BH', assemblyToBytecode[assembly[index + 1]], assembly[index + 2])
+							index += 3
 					else:
 						raise Exception('invalid other assembly code for "'+str(assembly[index])+'" at index '+str(index))
 				else:
@@ -902,7 +902,10 @@ class ClassBytecode(object):
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str and self.assembly[offset] in assemblyConstantReferenceListing:
 				offset += 1
+				print('unlinking:', self.assembly[offset])
+				# self.assembly[offset] = 5
 				self.assembly[offset] = classfile.constantToIndex(self.assembly[offset])
+				print('index: ', self.assembly[offset])
 			offset += 1
 
 
@@ -911,10 +914,14 @@ class ClassBytecode(object):
 
 
 
-# bc = ClassBytecode()
-# bc.decompile(b'\xb2\x00\x02\x12\x03\xb6\x00\x04\xa7\x00\x0cL\xb2\x00\x02\x12\x06\xb6\x00\x04\xb1')
-# print bc.assembly
-# bc.compile()
-# print [b'\xb2\x00\x02\x12\x03\xb6\x00\x04\xa7\x00\x0cL\xb2\x00\x02\x12\x06\xb6\x00\x04\xb1']
-# print [bc.bytecode]
-# print bc.stringAssembly()
+
+
+
+if __name__ == '__main__':
+	bc = ClassBytecode()
+	bc.decompile(b'\xb2\x00\x02\x12\x03\xb6\x00\x04\xa7\x00\x0cL\xb2\x00\x02\x12\x06\xb6\x00\x04\xb1')
+	print (bc.assembly)
+	bc.compile()
+	print ([b'\xb2\x00\x02\x12\x03\xb6\x00\x04\xa7\x00\x0cL\xb2\x00\x02\x12\x06\xb6\x00\x04\xb1'])
+	print ([bc.bytecode])
+	print (bc.stringAssembly())

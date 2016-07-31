@@ -39,7 +39,9 @@ def main(args):
 			bc.decompile(method.codeStructure['code'])
 			bc.linkAssembly(donorClass)
 			bc.unlinkAssembly(recipientClass)
+			print (bc.bytecode)
 			bc.compile()
+			print (bc.bytecode)
 			method.codeStructure['code'] = bc.bytecode
 
 			recipientClass.methods.append(method)

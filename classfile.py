@@ -498,6 +498,32 @@ class ClassFileMethod(ClassFileObject):
 
 		self.codeStructure = codeStructure
 
+	def packCodeAttribute(self, classfile):
+		codeStructure = self.codeStructure
+		data = b''
+
+		data += struct.pack('>HHL', codeStructure['max_stack'], codeStructure['max_locals'], codeStructure['code_length'])
+		data += codeStructure['code']
+
+		data += struct.pack('>H', codeStructure['exception_table_length'])
+		for entry in codeStructure['exception_table']:
+			entry['catch_type'] = classfile.constantToIndex(entry['catch_type'])
+			data += struct.pack('>HHHH', entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'])
+
+		data += struct.pack('>H', codeStructure['attributes_count'])
+		for attribute in codeStructure['attributes']:
+			if attribute.nameIndex.string == 'StackMapTable':
+				data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
+				attribute.data = data
+			attribute.unlink(classfile)
+			data += self.packAttribute(attribute)
+
+		attribute = self.getAttributeByName('Code')
+		attribute.data = data
+		# print("my attributes:")
+		# for attribute in self.attributes:
+		# 	print ('listing:', attribute, attribute.data)
+
 	def unpackStackFrame(self, data):
 		frame_type, = struct.unpack('>B', data[0:1])
 		data = data[1:]
@@ -583,33 +609,6 @@ class ClassFileMethod(ClassFileObject):
 			return ['ITEM_Uninitialized', offset], data[3:]
 		else:
 			raise Exception ("unknown variable type: "+str(variable_type))
-
-
-
-
-
-	def packCodeAttribute(self, classfile):
-		attribute = self.getAttributeByName('Code')
-		codeStructure = self.codeStructure
-		data = b''
-
-		data += struct.pack('>HHL', codeStructure['max_stack'], codeStructure['max_locals'], codeStructure['code_length'])
-		data += codeStructure['code']
-
-		data += struct.pack('>H', codeStructure['exception_table_length'])
-		for entry in codeStructure['exception_table']:
-			entry['catch_type'] = classfile.constantToIndex(entry['catch_type'])
-			data += struct.pack('>HHHH', entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'])
-
-		data += struct.pack('>H', codeStructure['attributes_count'])
-		for attribute in codeStructure['attributes']:
-			if attribute.nameIndex.string == 'StackMapTable':
-				data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
-				attribute.data = data
-			attribute.unlink(classfile)
-			data += self.packAttribute(attribute)
-
-		attribute.data = data
 
 
 	def packStackFrame(self, stackframe):
@@ -719,7 +718,6 @@ class ClassFileMethod(ClassFileObject):
 		# elif variable_type == 6:
 		# 	return ['ITEM_UninitializedThis'], data[1:]
 		elif typeinfo[0] == 'ITEM_Object':
-			# print (typeinfo[1])
 			return struct.pack('>BH', 7, typeinfo[1])
 		# elif variable_type == 7:
 		# 	const = struct.unpack('>H', data[1:3])
@@ -808,7 +806,7 @@ class ClassFile(object):
 			raise Exception('out-of-bounds constant index '+str(index)+' for constType "'+constType+'"')
 		const = self.constants[index - 1]
 		if constType != '*' and const.tagName != constType:
-			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'"')
+			raise Exception('invalid constant type at index '+str(index)+': "'+const.tagName+'" (expected "'+constType+'")')
 		return const
 
 	def constantToIndex(self, const, constType='*'):
@@ -1038,6 +1036,7 @@ class ClassFile(object):
 	def packMethod(self, method):
 		data = struct.pack('>HHHH', method.accessFlags, method.nameIndex, method.descriptorIndex, len(method.attributes))
 		for attribute in method.attributes:
+			print ('packmethod:', attribute, attribute.data)
 			data += self.packAttribute(attribute)
 		return data
 
@@ -1167,7 +1166,7 @@ class ClassFile(object):
 			method.uninline(self)
 		for attribute in self.attributes:
 			attribute.uninline(self)
-			
+
 		for const in self.constants:
 			const.uninline(self)
 		for const in self.constants:
