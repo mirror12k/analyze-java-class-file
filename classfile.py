@@ -473,18 +473,18 @@ class ClassFileMethod(ClassFileObject):
 		data = data[2:]
 		codeStructure['attributes'] = []
 		for i in range(codeStructure['attributes_count']):
-			attribute, data, = self.unpackAttribute(data)
-			attribute.link(classfile)
-			codeStructure['attributes'].append(attribute)
+			code_attribute, data, = self.unpackAttribute(data)
+			code_attribute.link(classfile)
+			codeStructure['attributes'].append(code_attribute)
 
 		if len(data) > 0:
 			raise Exception("invalid data on the end of Code attribute: "+str(data))
 
 
 		stackmap = None
-		for attribute in codeStructure['attributes']:
-			if attribute.nameIndex.string == 'StackMapTable':
-				stackmap = attribute
+		for code_attribute in codeStructure['attributes']:
+			if code_attribute.nameIndex.string == 'StackMapTable':
+				stackmap = code_attribute
 
 		if stackmap is not None:
 			data = stackmap.data
@@ -513,12 +513,12 @@ class ClassFileMethod(ClassFileObject):
 			data += struct.pack('>HHHH', entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'])
 
 		data += struct.pack('>H', codeStructure['attributes_count'])
-		for attribute in codeStructure['attributes']:
-			if attribute.nameIndex.string == 'StackMapTable':
-				data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
-				attribute.data = data
-			attribute.unlink(classfile)
-			data += self.packAttribute(attribute)
+		for code_attribute in codeStructure['attributes']:
+			if code_attribute.nameIndex.string == 'StackMapTable':
+				smt_data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
+				code_attribute.data = smt_data
+			code_attribute.unlink(classfile)
+			data += self.packAttribute(code_attribute)
 
 		attribute = self.getAttributeByName('Code')
 		attribute.data = data
