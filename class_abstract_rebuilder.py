@@ -227,6 +227,8 @@ def indentCode(code, count=1):
 class AbstractClassRebuilder(object):
 	def __init__(self, filepath, opts={}):
 		self.file = classfile.openFile(filepath)
+		self.file.linkClassFile()
+		self.file.inlineClassFile()
 		self.opts = {
 			'render_abstract' : opts.get('render_abstract', False),
 			'decompile_bytecode' : opts.get('decompile_bytecode', False),

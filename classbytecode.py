@@ -902,10 +902,7 @@ class ClassBytecode(object):
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str and self.assembly[offset] in assemblyConstantReferenceListing:
 				offset += 1
-				print('unlinking:', self.assembly[offset])
-				# self.assembly[offset] = 5
 				self.assembly[offset] = classfile.constantToIndex(self.assembly[offset])
-				print('index: ', self.assembly[offset])
 			offset += 1
 
 

@@ -344,6 +344,8 @@ class ClassFileMethod(ClassFileObject):
 		self.descriptorIndex = descriptorIndex
 		self.attributes = attributes
 
+		self.codeStructure = None
+
 
 	def link(self, classfile):
 		flags = []
@@ -484,7 +486,6 @@ class ClassFileMethod(ClassFileObject):
 				stackmap = attribute
 
 		if stackmap is not None:
-			# print ("got stackmap: ", str(stackmap), str(stackmap.data))
 			data = stackmap.data
 			frame_count, = struct.unpack('>H', data[:2])
 			data = data[2:]
@@ -520,9 +521,6 @@ class ClassFileMethod(ClassFileObject):
 
 		attribute = self.getAttributeByName('Code')
 		attribute.data = data
-		# print("my attributes:")
-		# for attribute in self.attributes:
-		# 	print ('listing:', attribute, attribute.data)
 
 	def unpackStackFrame(self, data):
 		frame_type, = struct.unpack('>B', data[0:1])
@@ -794,10 +792,20 @@ class ClassFileAttribute(object):
 
 
 class ClassFile(object):
-	def __init__(self, filepath):
-		self.filepath = filepath
+	def __init__(self):
+		pass
+		# self.filepath = filepath
+		# self.unpackClassFile()
 
-		self.unpackClassFile()
+	def fromFile(self, filepath):
+		self.filepath = filepath
+		self.unpackClassFile(filepath)
+
+	def toFile(self, filepath=None):
+		if filepath is None:
+			filepath = self.filepath
+
+		self.packClassFile(filepath)
 
 
 
@@ -829,8 +837,8 @@ class ClassFile(object):
 
 
 
-	def unpackClassFile(self):
-		self.handle = open(self.filepath, 'rb')
+	def unpackClassFile(self, filepath):
+		self.handle = open(filepath, 'rb')
 
 		data = self.handle.read(10)
 		fileStructure = {}
@@ -891,9 +899,9 @@ class ClassFile(object):
 		self.super_class = fileStructure['super_class']
 
 
-		# additional processing
-		self.linkClass()
-		self.inline()
+		# # additional processing
+		# self.linkClassFile()
+		# self.inlineClassFile()
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -961,11 +969,8 @@ class ClassFile(object):
 		attributeData = self.handle.read(attributeLength)
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
-	def packClassFile(self):
-		self.uninline()
-		self.unlinkClass()
-
-		self.handle = open(self.filepath, 'wb')
+	def packClassFile(self, filepath):
+		self.handle = open(filepath, 'wb')
 
 		data = struct.pack('>4sHHH', self.magic, self.version_minor, self.version_major, len(self.constants) + 1)
 		self.handle.write(data)
@@ -1036,7 +1041,6 @@ class ClassFile(object):
 	def packMethod(self, method):
 		data = struct.pack('>HHHH', method.accessFlags, method.nameIndex, method.descriptorIndex, len(method.attributes))
 		for attribute in method.attributes:
-			print ('packmethod:', attribute, attribute.data)
 			data += self.packAttribute(attribute)
 		return data
 
@@ -1046,7 +1050,7 @@ class ClassFile(object):
 		data += attribute.data
 		return data
 
-	def linkClass(self):
+	def linkClassFile(self):
 		flags = []
 		code = self.access_flags
 		if code & 0x0001: # Declared public; may be accessed from outside its package.
@@ -1090,7 +1094,7 @@ class ClassFile(object):
 
 
 
-	def unlinkClass(self):
+	def unlinkClassFile(self):
 
 		for method in self.methods:
 			method.packCodeAttribute(self)
@@ -1145,7 +1149,7 @@ class ClassFile(object):
 			const.unlink(self)
 
 
-	def inline(self):
+	def inlineClassFile(self):
 		for const in self.constants:
 			const.inline()
 		for const in self.constants:
@@ -1158,7 +1162,7 @@ class ClassFile(object):
 		for attribute in self.attributes:
 			attribute.inline()
 
-	def uninline(self):
+	def uninlineClassFile(self):
 
 		for field in self.fields:
 			field.uninline(self)
@@ -1175,6 +1179,8 @@ class ClassFile(object):
 
 
 
-def openFile(*args):
-	return ClassFile(*args)
+def openFile(filepath):
+	file = ClassFile()
+	file.fromFile(filepath)
+	return file
 

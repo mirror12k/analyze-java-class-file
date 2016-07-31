@@ -16,7 +16,11 @@ import class_abstract_rebuilder
 
 def main(args):
 	recipientClass = classfile.openFile(args[0])
+	recipientClass.linkClassFile()
+	recipientClass.inlineClassFile()
 	donorClass = classfile.openFile(args[1])
+	donorClass.linkClassFile()
+	donorClass.inlineClassFile()
 
 	if recipientClass.this_class != donorClass.this_class:
 		print ("incorrect this_class:", class_abstract_rebuilder.stringConstantSimple(recipientClass.this_class), ' vs ',
@@ -39,9 +43,7 @@ def main(args):
 			bc.decompile(method.codeStructure['code'])
 			bc.linkAssembly(donorClass)
 			bc.unlinkAssembly(recipientClass)
-			print (bc.bytecode)
 			bc.compile()
-			print (bc.bytecode)
 			method.codeStructure['code'] = bc.bytecode
 
 			recipientClass.methods.append(method)
@@ -51,7 +53,9 @@ def main(args):
 
 	# recipientClass.constants.append(c)
 
-	recipientClass.packClassFile()
+	recipientClass.uninlineClassFile()
+	recipientClass.unlinkClassFile()
+	recipientClass.toFile()
 
 
 if __name__ == '__main__':
