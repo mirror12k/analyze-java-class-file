@@ -3,7 +3,7 @@
 
 import struct
 
-import class_abstract_rebuilder
+from java_code_tools import *
 
 
 
@@ -867,7 +867,7 @@ class ClassBytecode(object):
 					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
 				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
 					code = code + ' #' + str(self.assembly[offset]) + '\t\t// ' +\
-							class_abstract_rebuilder.stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
+							stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
 				else:
 					code = code + ' ' + str(self.assembly[offset])
 			offset += 1
@@ -895,6 +895,16 @@ class ClassBytecode(object):
 			if type(self.assembly[offset]) == str and self.assembly[offset] in assemblyConstantReferenceListing:
 				offset += 1
 				self.assembly[offset] = classfile.constantFromIndex(self.assembly[offset])
+			offset += 1
+
+	# registers the linked assembly constants with a potentially foreign classfile
+	# this allows transfer of assembly between classfiles
+	def uninlineAssembly(self, classfile):
+		offset = 0
+		while offset < len(self.assembly):
+			if type(self.assembly[offset]) == str and self.assembly[offset] in assemblyConstantReferenceListing:
+				offset += 1
+				self.assembly[offset] = classfile.getSetInlinedConstant(self.assembly[offset])
 			offset += 1
 
 	def unlinkAssembly(self, classfile):
