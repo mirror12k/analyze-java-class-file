@@ -39,12 +39,13 @@ def main(*args):
 				file.linkClassFile()
 			if analyze_level >= 3:
 				file.inlineClassFile()
+				file.linkBytecode()
 
 			# output data
 			# pprint.pprint(file.fileStructure)
 			print ("class constants:")
-			for const in file.constants:
-				print ("\t", const)
+			for i in range(len(file.constants)):
+				print ("\t", i+1, ':', file.constants[i])
 			print ("class fields:")
 			for field in file.fields:
 				print ("\t", field)
@@ -59,6 +60,7 @@ def main(*args):
 
 			# repackage the file
 			if analyze_level >= 3:
+				file.unlinkBytecode()
 				file.uninlineClassFile()
 			if analyze_level >= 2:
 				file.unlinkClassFile()

@@ -2,6 +2,10 @@
 import struct
 
 
+import classbytecode
+
+
+
 constantTagTypeToTagName = {
 	1 : 'CONSTANT_Utf8',
 	3 : 'CONSTANT_Integer',
@@ -1184,7 +1188,13 @@ class ClassFile(object):
 		for attribute in self.attributes:
 			attribute.inline()
 
+		self.this_class = self.this_class.classname
+		self.super_class = self.super_class.classname
+
 	def uninlineClassFile(self):
+
+		self.this_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.this_class))
+		self.super_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.super_class))
 
 		for field in self.fields:
 			field.uninline(self)
@@ -1197,6 +1207,14 @@ class ClassFile(object):
 			const.uninline(self)
 		for const in self.constants:
 			const.setInlined(False)
+
+
+	def linkBytecode(self):
+		for method in self.methods:
+			method.codeStructure['code'] = classbytecode.decompileAndLink(method.codeStructure['code'], self)
+	def unlinkBytecode(self):
+		for method in self.methods:
+			method.codeStructure['code'] = classbytecode.unlinkAndCompile(method.codeStructure['code'], self)
 
 
 

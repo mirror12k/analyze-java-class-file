@@ -920,7 +920,24 @@ class ClassBytecode(object):
 
 
 
+def decompileAndLink(bytecode, classfile):
+	bc = ClassBytecode()
+	bc.decompile(bytecode)
+	bc.linkAssembly(classfile)
 
+	return bc.assembly
+
+
+def unlinkAndCompile(assembly, classfile):
+	bc = ClassBytecode()
+	bc.assembly = assembly
+	# uninline the assembly to ensure that the constants are present
+	bc.uninlineAssembly(classfile)
+	# relink and recompile the bytecode
+	bc.unlinkAssembly(classfile)
+	bc.compile()
+
+	return bc.bytecode
 
 
 
