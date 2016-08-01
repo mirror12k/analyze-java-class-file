@@ -252,7 +252,9 @@ class ClassFileConstant(object):
 class ClassFileObject(object):
 	def getAttributeByName(self, name):
 		for attribute in self.attributes:
-			if attribute.nameIndex.string == name:
+			if attribute.inlined and attribute.name == name:
+				return attribute
+			elif attribute.nameIndex.string == name:
 				return attribute
 
 
@@ -494,8 +496,9 @@ class ClassFileMethod(ClassFileObject):
 			data = stackmap.data
 			frame_count, = struct.unpack('>H', data[:2])
 			data = data[2:]
+			codeStructure['stackmap_frame_count'] = frame_count
+
 			stackframes = []
-			offset = 2
 			for i in range(frame_count):
 				frame, data = self.unpackStackFrame(data)
 				stackframes.append(frame)
@@ -508,15 +511,21 @@ class ClassFileMethod(ClassFileObject):
 		codeStructure = self.codeStructure
 		data = b''
 
-		data += struct.pack('>HHL', codeStructure['max_stack'], codeStructure['max_locals'], codeStructure['code_length'])
+		# allows changing code without bothering with code_length
+		data += struct.pack('>HHL', codeStructure['max_stack'], codeStructure['max_locals'], len(codeStructure['code']))
+		# data += struct.pack('>HHL', codeStructure['max_stack'], codeStructure['max_locals'], codeStructure['code_length'])
 		data += codeStructure['code']
 
-		data += struct.pack('>H', codeStructure['exception_table_length'])
+		# allows changing exceptions without bothering with exception_table_length
+		data += struct.pack('>H', len(codeStructure['exception_table']))
+		# data += struct.pack('>H', codeStructure['exception_table_length'])
 		for entry in codeStructure['exception_table']:
 			entry['catch_type'] = classfile.constantToIndex(entry['catch_type'])
 			data += struct.pack('>HHHH', entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'])
 
-		data += struct.pack('>H', codeStructure['attributes_count'])
+		# allows changing attributes without bothering with attributes_count
+		data += struct.pack('>H', len(codeStructure['attributes']))
+		# data += struct.pack('>H', codeStructure['attributes_count'])
 		for code_attribute in codeStructure['attributes']:
 			if code_attribute.nameIndex.string == 'StackMapTable':
 				smt_data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
@@ -743,27 +752,30 @@ class ClassFileMethod(ClassFileObject):
 		return data
 
 	def __str__(self):
-		return 'ClassFileMethod(accessFlags='+str(self.accessFlags)+\
-			',nameIndex='+str(self.nameIndex)+\
-			',descriptorIndex='+str(self.descriptorIndex)+\
-			',attributes='+str([ str(o) for o in self.attributes ])+\
-			',code='+str(self.codeStructure)+')'
+		return 'ClassFileMethod(\n\taccessFlags='+str(self.accessFlags)+\
+			',\n\tnameIndex='+str(self.nameIndex)+\
+			',\n\tdescriptorIndex='+str(self.descriptorIndex)+\
+			',\n\tattributes=['+', '.join([ str(o) for o in self.attributes ])+\
+			'],\n\tcode='+str(self.codeStructure)+'\n)'
 
 
 class ClassFileAttribute(object):
 	def __init__(self, nameIndex, data):
 		self.nameIndex = nameIndex
 		self.data = data
+		self.inlined = False
 	def link(self, classfile):
 		self.nameIndex = classfile.constantFromIndex(self.nameIndex, 'CONSTANT_Utf8')
 	def unlink(self, classfile):
 		self.nameIndex = classfile.constantToIndex(self.nameIndex, 'CONSTANT_Utf8')
 	def inline(self):
+		self.inlined = True
 		self.name = self.nameIndex.string
 	def uninline(self, classfile):
+		self.inlined = False
 		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
 	def __str__(self):
-		return 'ClassFileAttribute(nameIndex='+str(self.nameIndex)+')'
+		return 'ClassFileAttribute(nameIndex='+str(self.nameIndex)+', data='+str(self.data)+')'
 
 
 
@@ -792,7 +804,7 @@ class ClassFileAttribute(object):
 
 
 
-class ClassFile(object):
+class ClassFile(ClassFileObject):
 	def __init__(self):
 		pass
 		# self.filepath = filepath
@@ -910,7 +922,6 @@ class ClassFile(object):
 		self.this_class = fileStructure['this_class']
 		self.super_class = fileStructure['super_class']
 
-
 		# # additional processing
 		# self.linkClassFile()
 		# self.inlineClassFile()
@@ -982,6 +993,8 @@ class ClassFile(object):
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
 	def packClassFile(self, filepath):
+
+		# file writing
 		self.handle = open(filepath, 'wb')
 
 		# pack header
@@ -1142,8 +1155,23 @@ class ClassFile(object):
 			method.unpackCodeAttribute(self)
 
 
+		# unpack and link SourceFile attribute if it exists
+		sourcefile = self.getAttributeByName('SourceFile')
+		if sourcefile is not None:
+			sourcefileIndex, = struct.unpack('>H', sourcefile.data)
+			sourcefile.data = self.constantFromIndex(sourcefileIndex, 'CONSTANT_Utf8')
+
+
+
 
 	def unlinkClassFile(self):
+
+		# unlink and pack SourceFile attribute if it exists
+		sourcefile = self.getAttributeByName('SourceFile')
+		if sourcefile is not None:
+			sourcefileIndex = self.constantToIndex(sourcefile.data, 'CONSTANT_Utf8')
+			sourcefile.data = struct.pack('>H', sourcefileIndex)
+
 
 		for method in self.methods:
 			method.packCodeAttribute(self)
@@ -1191,7 +1219,17 @@ class ClassFile(object):
 		self.this_class = self.this_class.classname
 		self.super_class = self.super_class.classname
 
+		# inline SourceFile attribute if it exists
+		sourcefile = self.getAttributeByName('SourceFile')
+		if sourcefile is not None:
+			sourcefile.data = sourcefile.data.string
+
 	def uninlineClassFile(self):
+
+		# uninline SourceFile attribute if it exists
+		sourcefile = self.getAttributeByName('SourceFile')
+		if sourcefile is not None:
+			sourcefile.data = self.getSetInlinedConstant(createConstant('CONSTANT_Utf8', sourcefile.data))
 
 		self.this_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.this_class))
 		self.super_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.super_class))

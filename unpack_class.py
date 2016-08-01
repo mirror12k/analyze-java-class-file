@@ -4,6 +4,7 @@
 
 import sys
 import classfile
+from java_code_tools import *
 import pprint
 
 
@@ -43,15 +44,21 @@ def main(*args):
 
 			# output data
 			# pprint.pprint(file.fileStructure)
+
+			print ("class identifier:")
+			print("\t file.this_class = " + str(file.this_class))
+			print("\t file.super_class = " + str(file.super_class))
+			print("\t file.access_flags = " + str(file.access_flags))
+
 			print ("class constants:")
 			for i in range(len(file.constants)):
-				print ("\t", i+1, ':', file.constants[i])
+				print ("\t" + str(i+1) + ' : ' + str(file.constants[i]))
 			print ("class fields:")
 			for field in file.fields:
-				print ("\t", field)
+				print ("\t" + str(field))
 			print ("class methods:")
 			for method in file.methods:
-				print ("\t", method)
+				print (indentCode(str(method)))
 				if method.codeStructure is not None and 'stackmap' in method.codeStructure:
 					pprint.pprint(method.codeStructure['stackmap'])
 			print ("class attributes:")
