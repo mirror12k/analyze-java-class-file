@@ -440,6 +440,9 @@ class ClassFileMethod(ClassFileObject):
 		for attribute in self.codeStructure['attributes']:
 			attribute.inline()
 
+		if 'stackmap' in self.codeStructure:
+			self.inlineStackMap()
+
 	def uninline(self, classfile):
 		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
 		self.descriptorIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.descriptor))
@@ -452,6 +455,9 @@ class ClassFileMethod(ClassFileObject):
 
 		for attribute in self.codeStructure['attributes']:
 			attribute.uninline(classfile)
+
+		if 'stackmap' in self.codeStructure:
+			self.uninlineStackMap(classfile)
 
 
 	def unpackCodeAttribute(self, classfile):
@@ -505,7 +511,12 @@ class ClassFileMethod(ClassFileObject):
 
 			codeStructure['stackmap'] = stackframes
 
+
 		self.codeStructure = codeStructure
+
+		if 'stackmap' in self.codeStructure:
+			self.linkStackMap(classfile)
+
 
 	def packCodeAttribute(self, classfile):
 		codeStructure = self.codeStructure
@@ -528,13 +539,96 @@ class ClassFileMethod(ClassFileObject):
 		# data += struct.pack('>H', codeStructure['attributes_count'])
 		for code_attribute in codeStructure['attributes']:
 			if code_attribute.nameIndex.string == 'StackMapTable':
+				self.unlinkStackMap(classfile)
+
 				smt_data = struct.pack('>H', len(self.codeStructure['stackmap'])) + b''.join( self.packStackFrame(frame) for frame in self.codeStructure['stackmap'] )
 				code_attribute.data = smt_data
+
 			code_attribute.unlink(classfile)
 			data += self.packAttribute(code_attribute)
 
 		attribute = self.getAttributeByName('Code')
 		attribute.data = data
+
+
+	def linkStackMap(self, classfile):
+		for frame in self.codeStructure['stackmap']:
+			if frame['frame_type'] == 'same_locals_1_stack_item_frame' or frame['frame_type'] == 'same_locals_1_stack_item_frame_extended':
+				if frame['stack'][0] == 'ITEM_Object':
+					frame['stack'][1] = classfile.constantFromIndex(frame['stack'][1], 'CONSTANT_Class')
+			elif frame['frame_type'] == 'append_frame':
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.constantFromIndex(typeinfo[1], 'CONSTANT_Class')
+			elif frame['frame_type'] == 'full_frame':
+				for typeinfo in frame['locals_stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.constantFromIndex(typeinfo[1], 'CONSTANT_Class')
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.constantFromIndex(typeinfo[1], 'CONSTANT_Class')
+					
+
+	def unlinkStackMap(self, classfile):
+		# self.nameIndex = classfile.constantToIndex(self.nameIndex, 'CONSTANT_Utf8')
+		for frame in self.codeStructure['stackmap']:
+			if frame['frame_type'] == 'same_locals_1_stack_item_frame' or frame['frame_type'] == 'same_locals_1_stack_item_frame_extended':
+				if frame['stack'][0] == 'ITEM_Object':
+					frame['stack'][1] = classfile.constantToIndex(frame['stack'][1], 'CONSTANT_Class')
+			elif frame['frame_type'] == 'append_frame':
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.constantToIndex(typeinfo[1], 'CONSTANT_Class')
+			elif frame['frame_type'] == 'full_frame':
+				for typeinfo in frame['locals_stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.constantToIndex(typeinfo[1], 'CONSTANT_Class')
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.constantToIndex(typeinfo[1], 'CONSTANT_Class')
+
+	def inlineStackMap(self):
+		for frame in self.codeStructure['stackmap']:
+			if frame['frame_type'] == 'same_locals_1_stack_item_frame' or frame['frame_type'] == 'same_locals_1_stack_item_frame_extended':
+				if frame['stack'][0] == 'ITEM_Object':
+					frame['stack'][1] = frame['stack'][1].nameIndex.string
+			elif frame['frame_type'] == 'append_frame':
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = typeinfo[1].nameIndex.string
+			elif frame['frame_type'] == 'full_frame':
+				for typeinfo in frame['locals_stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = typeinfo[1].nameIndex.string
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = typeinfo[1].nameIndex.string
+	def uninlineStackMap(self, classfile):
+		for frame in self.codeStructure['stackmap']:
+			if frame['frame_type'] == 'same_locals_1_stack_item_frame' or frame['frame_type'] == 'same_locals_1_stack_item_frame_extended':
+				if frame['stack'][0] == 'ITEM_Object':
+					frame['stack'][1] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', frame['stack'][1]))
+			elif frame['frame_type'] == 'append_frame':
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', typeinfo[1]))
+			elif frame['frame_type'] == 'full_frame':
+				for typeinfo in frame['locals_stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', typeinfo[1]))
+				for typeinfo in frame['stack']:
+					if typeinfo[0] == 'ITEM_Object':
+						typeinfo[1] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', typeinfo[1]))
+
+
+
+	# def linkStackTypeInfo(self, classfile):
+	# def unlinkStackTypeInfo(self, classfile):
+	# def inlineStackTypeInfo(self, classfile):
+	# def uninlineStackTypeInfo(self, classfile):
+
+
+
 
 	def unpackStackFrame(self, data):
 		frame_type, = struct.unpack('>B', data[0:1])
@@ -586,7 +680,7 @@ class ClassFileMethod(ClassFileObject):
 				typeinfo, data = self.unpackStackTypeInfo(data)
 				stack.append(typeinfo)
 			return {
-				'frame_type' : 'FULL_FRAME',
+				'frame_type' : 'full_frame',
 				'offset_delta' : offset_delta,
 				# 'number_of_locals' : number_of_locals,
 				'locals_stack' : locals_stack,
@@ -672,7 +766,7 @@ class ClassFileMethod(ClassFileObject):
 		# 		# 'locals_appended' : locals_appended,
 		# 		'stack' : stack,
 		# 	}, data
-		elif stackframe['frame_type'] == 'same_frame_extended':
+		elif stackframe['frame_type'] == 'full_frame':
 			return struct.pack('>BHH', 255, stackframe['offset_delta'], len(stackframe['locals_stack'])) +\
 					b''.join( self.packStackTypeInfo(typeinfo) for typeinfo in stackframe['locals_stack'] ) +\
 					struct.pack('>H', len(stackframe['stack'])) + b''.join( self.packStackTypeInfo(typeinfo) for typeinfo in stackframe['stack'] )
@@ -690,7 +784,7 @@ class ClassFileMethod(ClassFileObject):
 			# 	typeinfo, data = self.unpackStackTypeInfo(data)
 			# 	stack.append(typeinfo)
 			# return {
-			# 	'frame_type' : 'FULL_FRAME',
+			# 	'frame_type' : 'full_frame',
 			# 	'offset_delta' : offset_delta,
 			# 	# 'number_of_locals' : number_of_locals,
 			# 	'locals_stack' : locals_stack,
