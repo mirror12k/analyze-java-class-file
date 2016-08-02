@@ -456,7 +456,8 @@ class ClassFileMethod(ClassFileObject):
 			attribute.inline()
 
 		for exception in self.codeStructure['exception_table']:
-			exception['catch_type'] = exception['catch_type'].nameIndex.string
+			if exception['catch_type'] is not None:
+				exception['catch_type'] = exception['catch_type'].nameIndex.string
 
 		for attribute in self.codeStructure['attributes']:
 			attribute.inline()
@@ -477,7 +478,8 @@ class ClassFileMethod(ClassFileObject):
 			attribute.uninline(classfile)
 
 		for exception in self.codeStructure['exception_table']:
-			exception['catch_type'] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', exception['catch_type']))
+			if exception['catch_type'] is not None:
+				exception['catch_type'] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', exception['catch_type']))
 
 		for attribute in self.codeStructure['attributes']:
 			attribute.uninline(classfile)
@@ -508,7 +510,10 @@ class ClassFileMethod(ClassFileObject):
 		for i in range(codeStructure['exception_table_length']):
 			entry = {}
 			entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'], = struct.unpack('>HHHH', codeStructure['exception_table'][i])
-			entry['catch_type'] = classfile.constantFromIndex(entry['catch_type'])
+			if entry['catch_type'] == 0: # 0 is a special case meaning catch all exceptions ('finally' keyword)
+				entry['catch_type'] = None
+			else:
+				entry['catch_type'] = classfile.constantFromIndex(entry['catch_type'])
 			codeStructure['exception_table'][i] = entry
 		data = data[2 + 8 * codeStructure['exception_table_length']:]
 
@@ -562,7 +567,10 @@ class ClassFileMethod(ClassFileObject):
 		data += struct.pack('>H', len(codeStructure['exception_table']))
 		# data += struct.pack('>H', codeStructure['exception_table_length'])
 		for entry in codeStructure['exception_table']:
-			entry['catch_type'] = classfile.constantToIndex(entry['catch_type'])
+			if entry['catch_type'] is None:
+				entry['catch_type'] = 0
+			else:
+				entry['catch_type'] = classfile.constantToIndex(entry['catch_type'])
 			data += struct.pack('>HHHH', entry['start_pc'], entry['end_pc'], entry['handler_pc'], entry['catch_type'])
 
 		# allows changing attributes without bothering with attributes_count
@@ -1002,9 +1010,11 @@ class ClassFile(ClassFileObject):
 		
 		# extract the constants
 		constants = []
-		for i in range(1, fileStructure['const_count']):
+		i = 1
+		while i < fileStructure['const_count']:
 			const = self.unpackConstant()
 			constants.append(const)
+			# print ('#', i, 'of', fileStructure['const_count'], const) # DEBUG UNPACK
 			i += 1
 			if const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
 				# longs and doubles take up two constant slots
@@ -1279,7 +1289,8 @@ class ClassFile(ClassFileObject):
 
 
 		for const in self.constants:
-			const.link(self)
+			if const is not None: # can be None due to Long and Double constants creating holes
+				const.link(self)
 
 		for field in self.fields:
 			field.link(self)
@@ -1339,14 +1350,17 @@ class ClassFile(ClassFileObject):
 		self.interfaces = [ self.constantToIndex(interface, 'CONSTANT_Class') for interface in self.interfaces ]
 
 		for const in self.constants:
-			const.unlink(self)
+			if const is not None: # can be None due to Long and Double constants creating holes
+				const.unlink(self)
 
 
 	def inlineClassFile(self):
 		for const in self.constants:
-			const.inline()
+			if const is not None: # can be None due to Long and Double constants creating holes
+				const.inline()
 		for const in self.constants:
-			const.setInlined(True)
+			if const is not None: # can be None due to Long and Double constants creating holes
+				const.setInlined(True)
 
 		for field in self.fields:
 			field.inline()
@@ -1381,9 +1395,11 @@ class ClassFile(ClassFileObject):
 			attribute.uninline(self)
 
 		for const in self.constants:
-			const.uninline(self)
+			if const is not None: # can be None due to Long and Double constants creating holes
+				const.uninline(self)
 		for const in self.constants:
-			const.setInlined(False)
+			if const is not None: # can be None due to Long and Double constants creating holes
+				const.setInlined(False)
 
 
 	def linkBytecode(self):
