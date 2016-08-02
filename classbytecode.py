@@ -672,6 +672,10 @@ assemblyConstantReferenceListing = {
 	'anewarray' : True,
 	'checkcast' : True,
 	'instanceof' : True,
+
+	'multianewarray' : True,
+	'invokeinterface' : True,
+	'invokedynamic' : True,
 }
 
 

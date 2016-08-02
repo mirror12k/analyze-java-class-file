@@ -344,6 +344,10 @@ class ClassFileField(ClassFileObject):
 			',descriptorIndex='+str(self.descriptorIndex)+\
 			',attributes='+str([ str(o) for o in self.attributes ])+')'
 
+
+
+
+
 class ClassFileMethod(ClassFileObject):
 	def __init__(self, accessFlags, nameIndex, descriptorIndex, attributes):
 		self.accessFlags = accessFlags
@@ -389,7 +393,24 @@ class ClassFileMethod(ClassFileObject):
 		for attribute in self.attributes:
 			attribute.link(classfile)
 
+		self.unpackCodeAttribute(classfile)
+
+		exceptionsAttribute = self.getAttributeByName('Exceptions')
+		if exceptionsAttribute is not None:
+			numberExceptions, = struct.unpack('>H', exceptionsAttribute.data[:2])
+			exceptionsAttribute.data = [ index for index in struct.unpack('>' + 'H' * numberExceptions, exceptionsAttribute.data[2:]) ]
+			exceptionsAttribute.data = [ classfile.constantFromIndex(index, 'CONSTANT_Class') for index in exceptionsAttribute.data ]
+			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+
 	def unlink(self, classfile):
+		self.packCodeAttribute(classfile)
+
+		exceptionsAttribute = self.getAttributeByName('Exceptions')
+		if exceptionsAttribute is not None:
+			exceptionsAttribute.data = [ classfile.constantToIndex(index, 'CONSTANT_Class') for index in exceptionsAttribute.data ]
+			exceptionsAttribute.data = struct.pack('>H' + 'H' * len(exceptionsAttribute.data), len(exceptionsAttribute.data),
+					*exceptionsAttribute.data)
+
 		code = 0
 		for flag in self.accessFlags:
 			if flag == 'ACC_PUBLIC': # Declared public; may be accessed from outside its package.
@@ -440,6 +461,11 @@ class ClassFileMethod(ClassFileObject):
 		for attribute in self.codeStructure['attributes']:
 			attribute.inline()
 
+		exceptionsAttribute = self.getAttributeByName('Exceptions')
+		if exceptionsAttribute is not None:
+			exceptionsAttribute.data = [ classconst.nameIndex.string for classconst in exceptionsAttribute.data ]
+			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+
 		if 'stackmap' in self.codeStructure:
 			self.inlineStackMap()
 
@@ -455,6 +481,11 @@ class ClassFileMethod(ClassFileObject):
 
 		for attribute in self.codeStructure['attributes']:
 			attribute.uninline(classfile)
+
+		exceptionsAttribute = self.getAttributeByName('Exceptions')
+		if exceptionsAttribute is not None:
+			exceptionsAttribute.data = [ classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', classname)) for classname in exceptionsAttribute.data ]
+			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
 
 		if 'stackmap' in self.codeStructure:
 			self.uninlineStackMap(classfile)
@@ -1253,14 +1284,14 @@ class ClassFile(ClassFileObject):
 		for field in self.fields:
 			field.link(self)
 
-		for method in self.methods:
-			method.link(self)
-
 		for attribute in self.attributes:
 			attribute.link(self)
 
 		for method in self.methods:
-			method.unpackCodeAttribute(self)
+			method.link(self)
+
+		# for method in self.methods:
+		# 	method.unpackCodeAttribute(self)
 
 
 		# unpack and link SourceFile attribute if it exists
@@ -1281,14 +1312,14 @@ class ClassFile(ClassFileObject):
 			sourcefile.data = struct.pack('>H', sourcefileIndex)
 
 
-		for method in self.methods:
-			method.packCodeAttribute(self)
-
-		for field in self.fields:
-			field.unlink(self)
+		# for method in self.methods:
+		# 	method.packCodeAttribute(self)
 
 		for method in self.methods:
 			method.unlink(self)
+
+		for field in self.fields:
+			field.unlink(self)
 
 		for attribute in self.attributes:
 			attribute.unlink(self)
