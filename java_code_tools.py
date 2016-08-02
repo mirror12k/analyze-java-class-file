@@ -27,6 +27,21 @@ def stringConstantSimple(const):
 def classNameToCode(classname):
 	return classname.replace('/', '.')
 
+def classNameToSimpleNameCode(classname):
+	code = classNameToCode(classname)
+	if code.rfind('.') == -1:
+		return code
+	else:
+		return code[code.rfind('.')+1:]
+
+def classNameToPackageCode(classname):
+	code = classNameToCode(classname)
+	if code.rfind('.') == -1:
+		return None
+	else:
+		return code[:code.rfind('.')]
+
+
 
 # safely converts a class constant to the java class name
 def classConstantToName(const):

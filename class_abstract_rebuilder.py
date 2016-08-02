@@ -17,6 +17,8 @@ class AbstractClassRebuilder(object):
 		self.file.linkClassFile()
 		self.file.inlineClassFile()
 		self.opts = {
+			# simply lists functions and fields
+			'list_class' : opts.get('list_class', False),
 			# attempts to output an abstract hull of the class, turning all methods to abstract (commenting out ones that can't be abstract)
 			'render_abstract' : opts.get('render_abstract', False),
 			# uses classbytecode module to disassemble the bytecode
@@ -29,33 +31,36 @@ class AbstractClassRebuilder(object):
 	def stringClass(self):
 		text = ''
 
-		if classConstantToPackageName(self.file.this_class) is not None:
-			text = text + 'package ' + classConstantToPackageName(self.file.this_class) + ';\n'
+		if classNameToPackageCode(self.file.this_class) is not None:
+			text += 'package ' + classNameToPackageCode(self.file.this_class) + ';\n'
 
 		if self.opts['render_abstract']:
 			if 'ACC_ABSTRACT' not in self.file.access_flags:
-				text = text + 'abstract '
+				text += 'abstract '
 
-		text = text + classAccessFlagsToCode(self.file.access_flags) + ' class ' + classConstantToSimpleName(self.file.this_class) +\
-				' extends ' + classConstantToName(self.file.super_class) + ' {\n'
+		text += classAccessFlagsToCode(self.file.access_flags) + ' class ' + classNameToSimpleNameCode(self.file.this_class)
+		if classNameToCode(self.file.super_class) != 'java.lang.Object':
+			text += ' extends ' + classNameToCode(self.file.super_class)
+		text += ' {\n'
+
 
 		if len(self.file.fields) > 0:
-			text = text + '\t// fields\n'
+			text += '\t// fields\n'
 
 		for field in self.file.fields:
-			text = text + '\t' + self.stringField(field) + '\n'
+			text += '\t' + self.stringField(field) + '\n'
 			
 		if len(self.file.fields) > 0:
-			text = text + '\n'
+			text += '\n'
 
 
 		if len(self.file.methods) > 0:
-			text = text + '\t// methods\n'
+			text += '\t// methods\n'
 
 		for method in self.file.methods:
-			text = text + indentCode(self.stringMethod(method)) + '\n'
+			text += indentCode(self.stringMethod(method)) + '\n'
 
-		text = text + '}\n'
+		text += '}\n'
 
 		return text
 
@@ -69,33 +74,36 @@ class AbstractClassRebuilder(object):
 		# too many optional cases here, i wish i could clean this up
 		if self.opts['render_abstract']:
 			if 'ACC_STATIC' in method.accessFlags or methodname == '<clinit>' or methodname == '<init>':
-				text = text + '// '
+				text += '// '
 			elif 'ACC_ABSTRACT' not in method.accessFlags:
-				text = text + 'abstract '
+				text += 'abstract '
 
 
 		if methodname == '<clinit>':
-			text = text + methodAccessFlagsToCode(method.accessFlags)
+			text += methodAccessFlagsToCode(method.accessFlags)
 		else:
 			if methodname == '<init>':
-				methodname = classConstantToSimpleName(self.file.this_class)
+				methodname = classNameToSimpleNameCode(self.file.this_class)
 
-			text = text + methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
+			text += methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
 					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 
-		if self.opts['render_abstract']:
-			text = text + ';'
+		if 'exceptions_thrown' in method.codeStructure:
+			text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.codeStructure['exceptions_thrown'])
+
+		if self.opts['render_abstract'] or self.opts['list_class']:
+			text += ';'
 		else:
-			text = text + ' {\n'
+			text += ' {\n'
 			if self.opts['decompile_bytecode']:
 				bc = classbytecode.ClassBytecode(resolve_constants=not self.opts['link_bytecode'], classfile=self.file)
 				bc.decompile(method.codeStructure['code'])
 				if self.opts['link_bytecode']:
 					bc.linkAssembly(self.file)
-				text = text + indentCode(bc.stringAssembly()) + '\n'
+				text += indentCode(bc.stringAssembly()) + '\n'
 			else:
-				text = text + '\t// code ...\n'
-			text = text + '}'
+				text += '\t// code ...\n'
+			text += '}'
 
 		return text
 
@@ -120,6 +128,8 @@ def main(*args):
 				opts['decompile_bytecode'] = True
 			elif arg == '--link_bytecode' or arg == '-lb':
 				opts['link_bytecode'] = True
+			elif arg == '--list_class' or arg == '-l':
+				opts['list_class'] = True
 			else:
 				rebuilder = AbstractClassRebuilder(arg, opts)
 				print (rebuilder.stringClass())
