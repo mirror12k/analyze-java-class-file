@@ -74,9 +74,13 @@ def main(command=None, *args):
 
 	elif command == 'rename_method':
 		if len(args) < 3:
-			raise Exception('usage: rename_method <class filepath> <method name> <new method name>')
+			raise Exception('usage: rename_method <class filepath> <method name> <new method name> [method descriptor]')
+		elif len(args) == 3:
+			filepath, methodname, newmethodname = args
+			methoddescriptor = None
+		else:
+			filepath, methodname, newmethodname, methoddescriptor = args
 
-		filepath, methodname, newmethodname = args
 
 		printinfo('renaming method(s) '+ methodname + ' to ' + newmethodname + ' in ' + filepath)
 		printaction('unpacking file')
@@ -86,7 +90,7 @@ def main(command=None, *args):
 		file.linkBytecode()
 
 		printinfo('searching for methods')
-		renamedmethods = file.getMethodsByName(methodname)
+		renamedmethods = file.getMethodsByName(methodname, methoddescriptor)
 		if len(renamedmethods) == 0:
 			raise Exception('no matching methods found!')
 
@@ -104,9 +108,12 @@ def main(command=None, *args):
 
 	elif command == 'transplant_method':
 		if len(args) < 3:
-			raise Exception('usage: transplant_method <recipient filepath> <donor filepath> <method name>')
-
-		recipientFilepath, donorFilepath, methodname = args
+			raise Exception('usage: transplant_method <recipient filepath> <donor filepath> <method name> [method descriptor]')
+		elif len(args) == 3:
+			recipientFilepath, donorFilepath, methodname = args
+			methoddescriptor = None
+		else:
+			recipientFilepath, donorFilepath, methodname, methoddescriptor = args
 
 		printinfo('transplanting method(s) '+ methodname + ' from ' + donorFilepath + ' to ' + recipientFilepath)
 
@@ -123,12 +130,12 @@ def main(command=None, *args):
 		donorClass.linkBytecode()
 
 		printinfo('checking for saftey')
-		checkedMethods = recipientClass.getMethodsByName(methodname)
+		checkedMethods = recipientClass.getMethodsByName(methodname, methoddescriptor)
 		if len(checkedMethods) != 0:
 			raise Exception('recipient class already has method(s) matching the arguments!')
 
 		printinfo('searching for methods')
-		transplantedMethods = donorClass.getMethodsByName(methodname)
+		transplantedMethods = donorClass.getMethodsByName(methodname, methoddescriptor)
 		if len(transplantedMethods) == 0:
 			raise Exception('no matching methods found!')
 
@@ -137,6 +144,55 @@ def main(command=None, *args):
 			if 'ACC_ABSTRACT' not in method.accessFlags:
 				printaction ("transplanting method: " + method.name + " " + method.descriptor)
 				recipientClass.methods.append(method)
+
+		printaction('packing recipient class')
+		recipientClass.unlinkBytecode()
+		recipientClass.uninlineClassFile()
+		recipientClass.unlinkClassFile()
+		recipientClass.toFile()
+
+	elif command == 'hook_method':
+		if len(args) < 3:
+			raise Exception('usage: hook_method <recipient filepath> <donor filepath> <method name> [method descriptor]')
+		elif len(args) == 3:
+			recipientFilepath, donorFilepath, methodname = args
+			methoddescriptor = None
+		else:
+			recipientFilepath, donorFilepath, methodname, methoddescriptor = args
+
+		printinfo('hooking method(s) '+ methodname + ' from ' + donorFilepath + ' to ' + recipientFilepath)
+
+		printaction('unpacking recipient class')
+		recipientClass = classfile.openFile(recipientFilepath)
+		recipientClass.linkClassFile()
+		recipientClass.inlineClassFile()
+		recipientClass.linkBytecode()
+
+		printaction('unpacking donor class')
+		donorClass = classfile.openFile(donorFilepath)
+		donorClass.linkClassFile()
+		donorClass.inlineClassFile()
+		donorClass.linkBytecode()
+
+		printinfo('searching for method(s)')
+		hookedMethods = donorClass.getMethodsByName(methodname, methoddescriptor)
+		if len(hookedMethods) == 0:
+			raise Exception('donor class has no method(s) matching the arguments!')
+
+		printinfo('hooking method(s)')
+		for method in hookedMethods:
+			targetMethods = recipientClass.getMethodsByName(method.name, method.descriptor)
+			if len(targetMethods) == 0:
+				printwarning('method target [' + method.name + ' ' + method.descriptor + '] missing, skipping')
+			else:
+				for target in targetMethods:
+					printinfo('renaming hooked method [' + target.name + ' ' + target.descriptor + ']')
+					target.name += '__hooked'
+
+				printaction('transplanting hook method [' + method.name + ' ' + method.descriptor + '] to recipient class')
+				recipientClass.methods.append(method)
+
+
 
 		printaction('packing recipient class')
 		recipientClass.unlinkBytecode()
