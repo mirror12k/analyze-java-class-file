@@ -25,6 +25,8 @@ class AbstractClassRebuilder(object):
 			'decompile_bytecode' : opts.get('decompile_bytecode', False),
 			# tells the classbytecode module to link the constants of class file when disassembling instead of displaying constant numbers
 			'link_bytecode' : opts.get('link_bytecode', False),
+			# tells the classbytecode module to filter assembly instructions, looking for critical instructions such as instantiation, calls, branches, throws, and returns
+			'filter_critical' : opts.get('filter_critical', False),
 		}
 
 	# converts the given class file to a rough java code string
@@ -97,12 +99,17 @@ class AbstractClassRebuilder(object):
 			text += ' {\n'
 			if self.opts['decompile_bytecode']:
 				bc = classbytecode.ClassBytecode(
-					resolve_constants=not self.opts['link_bytecode'], classfile=self.file, exceptionTable=method.codeStructure['exception_table']
+					resolveConstants=not self.opts['link_bytecode'], classfile=self.file, exceptionTable=method.codeStructure['exception_table']
 				)
 				bc.decompile(method.codeStructure['code'])
 				if self.opts['link_bytecode']:
 					bc.linkAssembly(self.file)
-				text += indentCode(bc.stringAssembly()) + '\n'
+
+				if self.opts['filter_critical']:
+					assemblyFilter = classbytecode.assemblyCriticalInstructionsListing
+				else:
+					assemblyFilter = None
+				text += indentCode(bc.stringAssembly(assemblyFilterList=assemblyFilter)) + '\n'
 			else:
 				text += '\t// code ...\n'
 			text += '}'
@@ -132,6 +139,8 @@ def main(*args):
 				opts['link_bytecode'] = True
 			elif arg == '--list_class' or arg == '-l':
 				opts['list_class'] = True
+			elif arg == '--filter_critical' or arg == '-fc':
+				opts['filter_critical'] = True
 			else:
 				rebuilder = AbstractClassRebuilder(arg, opts)
 				print (rebuilder.stringClass())

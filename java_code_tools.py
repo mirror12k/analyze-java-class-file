@@ -119,9 +119,9 @@ def classAccessFlagsToCode(flags):
 		elif flag == 'ACC_ABSTRACT': # Declared abstract; must not be instantiated.
 			newflags.append('abstract')
 		elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-			newflags.append('SYNTHETIC')
+			newflags.append('/*SYNTHETIC*/')
 		elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
-			newflags.append('ANNOTATION')
+			newflags.append('/*ANNOTATION*/')
 		elif flag == 'ACC_ENUM': # Declared as an enum type.
 			newflags.append('enum')
 		else:
@@ -147,7 +147,7 @@ def fieldAccessFlagsToCode(flags):
 		elif flag == 'ACC_TRANSIENT': # Declared transient; not written or read by a persistent object manager.
 			newflags.append('transient')
 		elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-			newflags.append('SYNTHETIC')
+			newflags.append('/*SYNTHETIC*/')
 		elif flag == 'ACC_ENUM': # Declared as an element of an enum.
 			newflags.append('enum')
 		else:
@@ -183,7 +183,7 @@ def methodAccessFlagsToCode(flags):
 		elif flag == 'ACC_STRICT': # Declared strictfp; floating-point mode is FP-strict.
 			newflags.append('STRICT')
 		elif flag == 'ACC_SYNTHETIC': # Declared synthetic; not present in the source code.
-			newflags.append('SYNTHETIC')
+			newflags.append('/*SYNTHETIC*/')
 		else:
 			raise Exception('invalid flag in method access flags: '+flag)
 	return ' '.join(newflags)

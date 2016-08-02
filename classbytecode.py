@@ -3,7 +3,9 @@
 
 import struct
 
+import classfile
 from java_code_tools import *
+
 
 
 
@@ -739,6 +741,7 @@ assemblyAbsoluteLeaveListing = [
 	'jsr',
 	'goto_w',
 	'jsr_w',
+
 	'ireturn',
 	'lreturn',
 	'freturn',
@@ -752,20 +755,78 @@ assemblyAbsoluteLeaveListing = [
 
 
 
+assemblyCriticalInstructionsListing = [
+	'getstatic',
+	'putstatic',
+	'getfield',
+	'putfield',
+	'invokevirtual',
+	'invokespecial',
+	'invokestatic',
+	'new',
+	'anewarray',
+	'checkcast',
+	'instanceof',
+
+	'multianewarray',
+	'invokeinterface',
+	'invokedynamic',
+
+	'goto',
+	'jsr',
+	'goto_w',
+	'jsr_w',
+	'ireturn',
+	'lreturn',
+	'freturn',
+	'dreturn',
+	'areturn',
+	'return',
+	'return',
+	'athrow',
+
+	'ifeq',
+	'ifne',
+	'iflt',
+	'ifge',
+	'ifgt',
+	'ifle',
+	'if_icmpeq',
+	'if_icmpne',
+	'if_icmplt',
+	'if_icmpge',
+	'if_icmpgt',
+	'if_icmple',
+	'if_acmpeq',
+	'if_acmpne',
+	'ifnull',
+	'ifnonnull',
+]
+
+
 
 
 
 class ClassBytecode(object):
-	def __init__(self, label_offsets=True, globalize_jumps=True, markJumpDestinations=True, exceptionTable=None, resolve_constants=False, classfile=None):
+	def __init__(self, **kwargs):
 		self.bytecode = b''
 		self.assembly = []
 
-		self.label_offsets = label_offsets
-		self.globalize_jumps = globalize_jumps
-		self.resolve_constants = resolve_constants
-		self.markJumpDestinations = markJumpDestinations
-		self.exceptionTable = exceptionTable
-		self.classfile = classfile
+		# these are options that only effect the stringing of bytecode, they have nothing to do with compiling/decompiling
+
+		# labels bytecode offsets in each instruction
+		self.labelOffsets = kwargs.get('labelOffsets', True)
+		# adds the bytecode offset to each jump instruction's argument to get the absolute destination
+		self.globalizeJumps = kwargs.get('globalizeJumps', True)
+		# adds comments on the the constants referenced in assembly code by retrieving them from the given classfile
+		self.resolveConstants = kwargs.get('resolveConstants', False)
+		# calculates where jumps lead to and marks their destinations with helpful symbols about what jump types they are
+		self.markJumpDestinations = kwargs.get('markJumpDestinations', True)
+		self.markJumpSources = kwargs.get('markJumpSources', True)
+		# an exception table. if given and markJumpDestinations is enabled, it will use this to display exception handling locations
+		self.exceptionTable = kwargs.get('exceptionTable', None)
+		# classfile for resolving constants if resolveConstants is enabled
+		self.classfile = kwargs.get('classfile', None)
 	def decompile (self, bytecode):
 		self.bytecode = bytecode
 		offset = 0
@@ -950,7 +1011,7 @@ class ClassBytecode(object):
 		return jumpDestinations
 
 
-	def stringAssembly(self):
+	def stringAssembly(self, assemblyFilterList=None):
 		code = ''
 
 		if self.markJumpDestinations:
@@ -968,11 +1029,14 @@ class ClassBytecode(object):
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str:
 
-				if len(code) != 0:
+				if len(code) != 0 and (assemblyFilterList is None or lastInstruction in assemblyFilterList):
 					code += '\n'
 
-				if self.markJumpDestinations and lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
-					code += '\t----\n'
+				if self.markJumpSources and lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
+					code += '\t>>--\n'
+					code += '\n'
+				if self.markJumpSources and lastInstruction is not None and lastInstruction in assemblyConditionalJumpListing:
+					code += '\t>>??\n'
 
 
 				if self.markJumpDestinations and bytecodeOffset in exceptionJumpDestinations:
@@ -985,28 +1049,35 @@ class ClassBytecode(object):
 				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
 					code += '<<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
 
-				if self.label_offsets:
-					code += str(bytecodeOffset) + ':\t'
-
 				if self.assembly[offset] == 'wide':
 					inst = 'wide ' + self.assembly[offset+1]
+					lastInstruction = self.assembly[offset+1]
 				else:
 					inst = self.assembly[offset]
-				lastInstruction = inst
-				code += inst
+					lastInstruction = inst
+
+				if self.labelOffsets and (assemblyFilterList is None or lastInstruction in assemblyFilterList):
+					code += str(bytecodeOffset) + ':\t'
+
+				if assemblyFilterList is None or lastInstruction in assemblyFilterList:
+					code += inst
 
 				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
 				if self.assembly[offset] == 'wide':
 					offset += 1
 			else:
-				if self.globalize_jumps and lastInstruction in assemblyJumpListing:
-					code += ' ' + str(self.assembly[offset] + lastBytecodeOffset)
-				elif self.resolve_constants and lastInstruction in assemblyConstantReferenceListing:
-					code += ' #' + str(self.assembly[offset]) + '\t\t// ' +\
-							stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
-				else:
-					code += ' ' + str(self.assembly[offset])
+				if assemblyFilterList is None or lastInstruction in assemblyFilterList:
+					if self.globalizeJumps and lastInstruction in assemblyJumpListing:
+						code += ' ' + str(self.assembly[offset] + lastBytecodeOffset)
+					elif self.resolveConstants and type(self.assembly[offset-1]) == str and lastInstruction in assemblyConstantReferenceListing:
+						code += ' #' + str(self.assembly[offset]) + '\t\t// ' +\
+								stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
+					else:
+						if isinstance(self.assembly[offset], classfile.ClassFileConstant):
+							code += ' ' + stringConstantSimple(self.assembly[offset])
+						else:
+							code += ' ' + str(self.assembly[offset])
 			offset += 1
 
 		return code
