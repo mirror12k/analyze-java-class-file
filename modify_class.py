@@ -72,6 +72,36 @@ def main(command=None, *args):
 		file.unlinkClassFile()
 		file.toFile()
 
+	elif command == 'rename_method':
+		if len(args) < 3:
+			raise Exception('usage: rename_method <class filepath> <method name> <new method name>')
+
+		filepath, methodname, newmethodname = args
+
+		printinfo('renaming method(s) '+ methodname + ' to ' + newmethodname + ' in ' + filepath)
+		printaction('unpacking file')
+		file = classfile.openFile(filepath)
+		file.linkClassFile()
+		file.inlineClassFile()
+		file.linkBytecode()
+
+		printinfo('searching for methods')
+		renamedmethods = file.getMethodsByName(methodname)
+		if len(renamedmethods) == 0:
+			raise Exception('no matching methods found!')
+
+		printaction('renaming methods')
+		for method in renamedmethods:
+			if 'ACC_ABSTRACT' not in method.accessFlags:
+				printaction ("renaming method: " + method.name + " " + method.descriptor)
+				method.name = newmethodname
+
+		printaction('packing file')
+		file.unlinkBytecode()
+		file.uninlineClassFile()
+		file.unlinkClassFile()
+		file.toFile()
+
 	elif command == 'transplant_method':
 		if len(args) < 3:
 			raise Exception('usage: transplant_method <recipient filepath> <donor filepath> <method name>')
@@ -104,7 +134,7 @@ def main(command=None, *args):
 
 		printaction('transplanting methods')
 		for method in transplantedMethods:
-			if 'ACC_ABSTRACT' not in method.accessFlags and method.name == methodname:
+			if 'ACC_ABSTRACT' not in method.accessFlags:
 				printaction ("transplanting method: " + method.name + " " + method.descriptor)
 				recipientClass.methods.append(method)
 
