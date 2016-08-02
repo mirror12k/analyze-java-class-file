@@ -657,79 +657,97 @@ assemblyToSize = {
 
 
 
-assemblyConstantReferenceListing = {
-	'ldc' : True,
-	'ldc_w' : True,
-	'ldc2_w' : True,
-	'getstatic' : True,
-	'putstatic' : True,
-	'getfield' : True,
-	'putfield' : True,
-	'invokevirtual' : True,
-	'invokespecial' : True,
-	'invokestatic' : True,
-	'new' : True,
-	'anewarray' : True,
-	'checkcast' : True,
-	'instanceof' : True,
+# list of instructions that reference constants
+assemblyConstantReferenceListing = [
+	'ldc',
+	'ldc_w',
+	'ldc2_w',
+	'getstatic',
+	'putstatic',
+	'getfield',
+	'putfield',
+	'invokevirtual',
+	'invokespecial',
+	'invokestatic',
+	'new',
+	'anewarray',
+	'checkcast',
+	'instanceof',
 
-	'multianewarray' : True,
-	'invokeinterface' : True,
-	'invokedynamic' : True,
-}
-
-
-assemblyJumpListing = {
-	'ifeq' : True,
-	'ifne' : True,
-	'iflt' : True,
-	'ifge' : True,
-	'ifgt' : True,
-	'ifle' : True,
-	'if_icmpeq' : True,
-	'if_icmpne' : True,
-	'if_icmplt' : True,
-	'if_icmpge' : True,
-	'if_icmpgt' : True,
-	'if_icmple' : True,
-	'if_acmpeq' : True,
-	'if_acmpne' : True,
-	'goto' : True,
-	'jsr' : True,
-	'ifnull' : True,
-	'ifnonnull' : True,
-
-	'goto_w' : True,
-	'jsr_w' : True,
-}
-
-assemblyAbsoluteJumpListing = {
-	'goto' : True,
-	'jsr' : True,
-	'goto_w' : True,
-	'jsr_w' : True,
-}
+	'multianewarray',
+	'invokeinterface',
+	'invokedynamic',
+]
 
 
-assemblyConditionalJumpListing = {
-	'ifeq' : True,
-	'ifne' : True,
-	'iflt' : True,
-	'ifge' : True,
-	'ifgt' : True,
-	'ifle' : True,
-	'if_icmpeq' : True,
-	'if_icmpne' : True,
-	'if_icmplt' : True,
-	'if_icmpge' : True,
-	'if_icmpgt' : True,
-	'if_icmple' : True,
-	'if_acmpeq' : True,
-	'if_acmpne' : True,
-	'ifnull' : True,
-	'ifnonnull' : True,
-}
+# list of instructions that jump execution
+assemblyJumpListing = [
+	'ifeq',
+	'ifne',
+	'iflt',
+	'ifge',
+	'ifgt',
+	'ifle',
+	'if_icmpeq',
+	'if_icmpne',
+	'if_icmplt',
+	'if_icmpge',
+	'if_icmpgt',
+	'if_icmple',
+	'if_acmpeq',
+	'if_acmpne',
+	'goto',
+	'jsr',
+	'ifnull',
+	'ifnonnull',
 
+	'goto_w',
+	'jsr_w',
+]
+
+# list of jump instructions that always jump
+assemblyAbsoluteJumpListing = [
+	'goto',
+	'jsr',
+	'goto_w',
+	'jsr_w',
+]
+
+
+# list of jump instructions that conditionally jump
+assemblyConditionalJumpListing = [
+	'ifeq',
+	'ifne',
+	'iflt',
+	'ifge',
+	'ifgt',
+	'ifle',
+	'if_icmpeq',
+	'if_icmpne',
+	'if_icmplt',
+	'if_icmpge',
+	'if_icmpgt',
+	'if_icmple',
+	'if_acmpeq',
+	'if_acmpne',
+	'ifnull',
+	'ifnonnull',
+]
+
+assemblyAbsoluteLeaveListing = [
+	'goto',
+	'jsr',
+	'goto_w',
+	'jsr_w',
+	'ireturn',
+	'lreturn',
+	'freturn',
+	'dreturn',
+	'areturn',
+	'return',
+	'return',
+	'athrow',
+]
 
 
 
@@ -738,7 +756,7 @@ assemblyConditionalJumpListing = {
 
 
 class ClassBytecode(object):
-	def __init__(self, label_offsets=True, globalize_jumps=True, markJumpDestinations=True, resolve_constants=False, classfile=None):
+	def __init__(self, label_offsets=True, globalize_jumps=True, markJumpDestinations=True, exceptionTable=None, resolve_constants=False, classfile=None):
 		self.bytecode = b''
 		self.assembly = []
 
@@ -746,6 +764,7 @@ class ClassBytecode(object):
 		self.globalize_jumps = globalize_jumps
 		self.resolve_constants = resolve_constants
 		self.markJumpDestinations = markJumpDestinations
+		self.exceptionTable = exceptionTable
 		self.classfile = classfile
 	def decompile (self, bytecode):
 		self.bytecode = bytecode
@@ -900,7 +919,7 @@ class ClassBytecode(object):
 				self.assembly[offset] = classfile.constantToIndex(self.assembly[offset])
 			offset += 1
 
-	def calculateJumps(self, assemblySearchList=assemblyJumpListing):
+	def calculateJumpDestinations(self, assemblySearchList=assemblyJumpListing):
 		jumpDestinations = {}
 
 		offset = 0
@@ -920,27 +939,51 @@ class ClassBytecode(object):
 
 		return jumpDestinations
 
+	def calculateExceptionDestinations(self):
+		jumpDestinations = {}
+
+		for entry in self.exceptionTable:
+			if entry['handler_pc'] not in jumpDestinations:
+				jumpDestinations[entry['handler_pc']] = []
+			jumpDestinations[entry['handler_pc']].append(entry)
+
+		return jumpDestinations
+
 
 	def stringAssembly(self):
 		code = ''
 
 		if self.markJumpDestinations:
-			absoluteJumpDestinations = self.calculateJumps(assemblyAbsoluteJumpListing)
-			conditionalJumpDestinations = self.calculateJumps(assemblyConditionalJumpListing)
+			absoluteJumpDestinations = self.calculateJumpDestinations(assemblyAbsoluteJumpListing)
+			conditionalJumpDestinations = self.calculateJumpDestinations(assemblyConditionalJumpListing)
+			if self.exceptionTable is not None:
+				exceptionJumpDestinations = self.calculateExceptionDestinations()
+			else:
+				exceptionJumpDestinations = {}
 
 		offset = 0
 		bytecodeOffset = 0
 		lastBytecodeOffset = bytecodeOffset
+		lastInstruction = None
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str:
 
 				if len(code) != 0:
 					code += '\n'
 
+				if self.markJumpDestinations and lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
+					code += '\t----\n'
+
+
+				if self.markJumpDestinations and bytecodeOffset in exceptionJumpDestinations:
+					code += '<<** ' + ','.join(\
+						'[{}:{}] : {}'.format(entry['start_pc'], entry['end_pc'], str(classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*')) \
+							for entry in exceptionJumpDestinations[bytecodeOffset] \
+					) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in absoluteJumpDestinations:
-					code += '<< ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
+					code += '<<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
-					code += '<? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
+					code += '<<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
 
 				if self.label_offsets:
 					code += str(bytecodeOffset) + ':\t'
@@ -949,6 +992,7 @@ class ClassBytecode(object):
 					inst = 'wide ' + self.assembly[offset+1]
 				else:
 					inst = self.assembly[offset]
+				lastInstruction = inst
 				code += inst
 
 				lastBytecodeOffset = bytecodeOffset
@@ -956,9 +1000,9 @@ class ClassBytecode(object):
 				if self.assembly[offset] == 'wide':
 					offset += 1
 			else:
-				if type(self.assembly[offset-1]) == str and self.globalize_jumps and self.assembly[offset-1] in assemblyJumpListing:
+				if self.globalize_jumps and lastInstruction in assemblyJumpListing:
 					code += ' ' + str(self.assembly[offset] + lastBytecodeOffset)
-				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
+				elif self.resolve_constants and lastInstruction in assemblyConstantReferenceListing:
 					code += ' #' + str(self.assembly[offset]) + '\t\t// ' +\
 							stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
 				else:

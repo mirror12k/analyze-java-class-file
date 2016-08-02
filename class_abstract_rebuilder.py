@@ -96,7 +96,9 @@ class AbstractClassRebuilder(object):
 		else:
 			text += ' {\n'
 			if self.opts['decompile_bytecode']:
-				bc = classbytecode.ClassBytecode(resolve_constants=not self.opts['link_bytecode'], classfile=self.file)
+				bc = classbytecode.ClassBytecode(
+					resolve_constants=not self.opts['link_bytecode'], classfile=self.file, exceptionTable=method.codeStructure['exception_table']
+				)
 				bc.decompile(method.codeStructure['code'])
 				if self.opts['link_bytecode']:
 					bc.linkAssembly(self.file)
