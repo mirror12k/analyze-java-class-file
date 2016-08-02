@@ -698,6 +698,36 @@ assemblyJumpListing = {
 	'jsr' : True,
 	'ifnull' : True,
 	'ifnonnull' : True,
+
+	'goto_w' : True,
+	'jsr_w' : True,
+}
+
+assemblyAbsoluteJumpListing = {
+	'goto' : True,
+	'jsr' : True,
+	'goto_w' : True,
+	'jsr_w' : True,
+}
+
+
+assemblyConditionalJumpListing = {
+	'ifeq' : True,
+	'ifne' : True,
+	'iflt' : True,
+	'ifge' : True,
+	'ifgt' : True,
+	'ifle' : True,
+	'if_icmpeq' : True,
+	'if_icmpne' : True,
+	'if_icmplt' : True,
+	'if_icmpge' : True,
+	'if_icmpgt' : True,
+	'if_icmple' : True,
+	'if_acmpeq' : True,
+	'if_acmpne' : True,
+	'ifnull' : True,
+	'ifnonnull' : True,
 }
 
 
@@ -708,13 +738,14 @@ assemblyJumpListing = {
 
 
 class ClassBytecode(object):
-	def __init__(self, label_offsets=True, globalize_jumps=True, resolve_constants=False, classfile=None):
+	def __init__(self, label_offsets=True, globalize_jumps=True, markJumpDestinations=True, resolve_constants=False, classfile=None):
 		self.bytecode = b''
 		self.assembly = []
 
 		self.label_offsets = label_offsets
 		self.globalize_jumps = globalize_jumps
 		self.resolve_constants = resolve_constants
+		self.markJumpDestinations = markJumpDestinations
 		self.classfile = classfile
 	def decompile (self, bytecode):
 		self.bytecode = bytecode
@@ -843,56 +874,6 @@ class ClassBytecode(object):
 				raise Exception('invalid assembly "'+str(assembly[index])+'" at index '+str(index))
 		self.bytecode = bytecode
 
-	def stringAssembly(self):
-		code = ''
-
-		offset = 0
-		bytecodeOffset = 0
-		lastBytecodeOffset = bytecodeOffset
-		while offset < len(self.assembly):
-			if type(self.assembly[offset]) == str:
-				if self.assembly[offset] == 'wide':
-					inst = 'wide ' + self.assembly[offset+1]
-				else:
-					inst = self.assembly[offset]
-
-				if len(code) != 0:
-					code = code + '\n'
-				if self.label_offsets:
-					code = code + str(bytecodeOffset) + ':\t'
-				code = code + inst
-
-				lastBytecodeOffset = bytecodeOffset
-				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
-				if self.assembly[offset] == 'wide':
-					offset += 1
-			else:
-				if type(self.assembly[offset-1]) == str and self.globalize_jumps and self.assembly[offset-1] in assemblyJumpListing:
-					code = code + ' ' + str(self.assembly[offset] + lastBytecodeOffset)
-				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
-					code = code + ' #' + str(self.assembly[offset]) + '\t\t// ' +\
-							stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
-				else:
-					code = code + ' ' + str(self.assembly[offset])
-			offset += 1
-
-		return code
-
-	def assemblyToSize(self, offset):
-		if assemblyToSize.get(self.assembly[offset]) is not None:
-			return assemblyToSize[self.assembly[offset]]
-		elif self.assembly[offset] == 'wide':
-			if self.assembly[offset + 1] == 'iinc':
-				return 5
-			else:
-				return 3
-		elif self.assembly[offset] == 'tableswitch':
-			raise Exception('unimplemented')
-		elif self.assembly[offset] == 'lookupswitch':
-			raise Exception('unimplemented')
-		else:
-			raise Exception('unknown assembly: '+self.assembly[offset])
-
 	def linkAssembly(self, classfile):
 		offset = 0
 		while offset < len(self.assembly):
@@ -918,6 +899,88 @@ class ClassBytecode(object):
 				offset += 1
 				self.assembly[offset] = classfile.constantToIndex(self.assembly[offset])
 			offset += 1
+
+	def calculateJumps(self, assemblySearchList=assemblyJumpListing):
+		jumpDestinations = {}
+
+		offset = 0
+		bytecodeOffset = 0
+		while offset < len(self.assembly):
+			if type(self.assembly[offset]) == str:
+				if self.assembly[offset] in assemblySearchList:
+					if self.assembly[offset+1] + bytecodeOffset not in jumpDestinations:
+						jumpDestinations[self.assembly[offset+1] + bytecodeOffset] = []
+					jumpDestinations[self.assembly[offset+1] + bytecodeOffset].append(bytecodeOffset)
+
+				lastBytecodeOffset = bytecodeOffset
+				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
+				if self.assembly[offset] == 'wide':
+					offset += 1
+			offset += 1
+
+		return jumpDestinations
+
+
+	def stringAssembly(self):
+		code = ''
+
+		if self.markJumpDestinations:
+			absoluteJumpDestinations = self.calculateJumps(assemblyAbsoluteJumpListing)
+			conditionalJumpDestinations = self.calculateJumps(assemblyConditionalJumpListing)
+
+		offset = 0
+		bytecodeOffset = 0
+		lastBytecodeOffset = bytecodeOffset
+		while offset < len(self.assembly):
+			if type(self.assembly[offset]) == str:
+
+				if len(code) != 0:
+					code += '\n'
+
+				if self.markJumpDestinations and bytecodeOffset in absoluteJumpDestinations:
+					code += '<< ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
+				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
+					code += '<? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
+
+				if self.label_offsets:
+					code += str(bytecodeOffset) + ':\t'
+
+				if self.assembly[offset] == 'wide':
+					inst = 'wide ' + self.assembly[offset+1]
+				else:
+					inst = self.assembly[offset]
+				code += inst
+
+				lastBytecodeOffset = bytecodeOffset
+				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
+				if self.assembly[offset] == 'wide':
+					offset += 1
+			else:
+				if type(self.assembly[offset-1]) == str and self.globalize_jumps and self.assembly[offset-1] in assemblyJumpListing:
+					code += ' ' + str(self.assembly[offset] + lastBytecodeOffset)
+				elif type(self.assembly[offset-1]) == str and self.resolve_constants and self.assembly[offset-1] in assemblyConstantReferenceListing:
+					code += ' #' + str(self.assembly[offset]) + '\t\t// ' +\
+							stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
+				else:
+					code += ' ' + str(self.assembly[offset])
+			offset += 1
+
+		return code
+
+	def assemblyToSize(self, offset):
+		if assemblyToSize.get(self.assembly[offset]) is not None:
+			return assemblyToSize[self.assembly[offset]]
+		elif self.assembly[offset] == 'wide':
+			if self.assembly[offset + 1] == 'iinc':
+				return 5
+			else:
+				return 3
+		elif self.assembly[offset] == 'tableswitch':
+			raise Exception('unimplemented')
+		elif self.assembly[offset] == 'lookupswitch':
+			raise Exception('unimplemented')
+		else:
+			raise Exception('unknown assembly: '+self.assembly[offset])
 
 
 

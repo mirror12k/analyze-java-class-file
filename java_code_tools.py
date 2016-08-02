@@ -12,12 +12,26 @@ def stringConstantSimple(const):
 		return 'class ' + classConstantToName(const)
 	elif const.tagName == 'CONSTANT_String':
 		return 'string "' + const.stringIndex.string + '"'
+	elif const.tagName == 'CONSTANT_InterfaceMethodref':
+		argtypes, rettype = methodDescriptorToCode(const.nameAndTypeIndex.descriptorIndex.string)
+		return 'interface method ' + rettype + ' ' + classConstantToName(const.classIndex) +\
+				'.' + const.nameAndTypeIndex.nameIndex.string + ' (' + ', '.join(argtypes) + ')'
 	elif const.tagName == 'CONSTANT_Methodref':
 		argtypes, rettype = methodDescriptorToCode(const.nameAndTypeIndex.descriptorIndex.string)
 		return 'method ' + rettype + ' ' + classConstantToName(const.classIndex) + '.' + const.nameAndTypeIndex.nameIndex.string + ' (' + ', '.join(argtypes) + ')'
 	elif const.tagName == 'CONSTANT_Fieldref':
 		return 'field ' + typeToCode(const.nameAndTypeIndex.descriptorIndex.string) + ' ' +\
 				classConstantToName(const.classIndex) + '.' + const.nameAndTypeIndex.nameIndex.string
+	elif const.tagName == 'CONSTANT_Integer':
+		return 'Integer ' + str(const.value)
+	elif const.tagName == 'CONSTANT_Float':
+		return 'Float ' + str(const.value) + 'F'
+	elif const.tagName == 'CONSTANT_Long':
+		return 'Long ' + str(const.value) + 'L'
+	elif const.tagName == 'CONSTANT_Double':
+		return 'Double ' + str(const.value) + 'D'
+		# elif self.tagName == 'CONSTANT_Integer' or self.tagName == 'CONSTANT_Float'\
+		# 	or self.tagName == 'CONSTANT_Long' or self.tagName == 'CONSTANT_Double':
 	else:
 		raise Exception("unknown constant type: " + const.tagName)
 
