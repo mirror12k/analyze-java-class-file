@@ -622,13 +622,6 @@ class ClassFileMethod(ClassFileObject):
 
 
 
-	# def linkStackTypeInfo(self, classfile):
-	# def unlinkStackTypeInfo(self, classfile):
-	# def inlineStackTypeInfo(self, classfile):
-	# def uninlineStackTypeInfo(self, classfile):
-
-
-
 
 	def unpackStackFrame(self, data):
 		frame_type, = struct.unpack('>B', data[0:1])
@@ -914,6 +907,27 @@ class ClassFile(ClassFileObject):
 
 		self.packClassFile(filepath)
 
+
+
+	def getFieldsByName(self, name, descriptor=None):
+		'''
+			returns a list of ClassFileField objects matching the name (and optionally descriptor)
+			requires the classfile to be inlined
+		'''
+		if descriptor is None:
+			return [ field for field in self.fields if field.name == name ]
+		else:
+			return [ field for field in self.fields if field.name == name and field.descriptor == descriptor ]
+
+	def getMethodsByName(self, name, descriptor=None):
+		'''
+			returns a list of ClassFileMethod objects matching the name (and optionally descriptor)
+			requires the classfile to be inlined
+		'''
+		if descriptor is None:
+			return [ method for method in self.methods if method.name == name ]
+		else:
+			return [ method for method in self.methods if method.name == name and method.descriptor == descriptor ]
 
 	# takes a class-file format constant index and returns the given constant
 	# the constType option allows safely retrieving a specific type of constant
