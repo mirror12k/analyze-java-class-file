@@ -441,7 +441,7 @@ assemblyToBytecode = {
 
 
 
-assemblyToSize = {
+assemblyToSizeTable = {
 	'nop' : 1,
 	'aconst_null' : 1,
 	'iconst_m1' : 1,
@@ -866,7 +866,21 @@ class ClassBytecode(object):
 					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
 					offset += 5
 				elif instruction == 'tableswitch':
-					raise Exception('unimplemented')
+					self.assembly.append(instruction)
+					if offset % 4 != 0:
+						offset += 4 - offset % 4
+					# print("offset:", offset)
+					# print("padding:", padding)
+					defaultGoto, low, high = struct.unpack('>iii', bytecode[offset:offset+12])
+					offset += 12
+					self.assembly.append(low)
+					# print("data:", defaultGoto, low, high)
+					# tableswitch is stored in a format of ['tableswitch', low, [*jump offsets*, default offset]]
+					jumpOffsets = [ struct.unpack('>i', bytecode[offset+4*i:offset+4+4*i])[0] for i in range(high - low + 1) ]
+					self.assembly.append(jumpOffsets + [defaultGoto])
+					offset += (high - low + 1) * 4
+
+					print(jumpOffsets)
 				elif instruction == 'lookupswitch':
 					raise Exception('unimplemented')
 				elif instruction == 'multianewarray':
@@ -932,7 +946,13 @@ class ClassBytecode(object):
 						bytecode += struct.pack('>BHBB', code, assembly[index + 1], assembly[index + 2], 0)
 						index += 3
 					elif assembly[index] == 'tableswitch':
-						raise Exception('unimplemented')
+						bytecode += struct.pack('>B', code)
+						if len(bytecode) % 4 != 0:
+							bytecode += b'\x00' * (4 - len(bytecode) % 4) # padding
+						jumpOffsets = assembly[index+2]
+						bytecode += struct.pack('>iii', jumpOffsets[-1], assembly[index+1], assembly[index+1] + len(jumpOffsets) - 2)
+						bytecode += struct.pack('>' + 'i' * (len(jumpOffsets) - 1), *jumpOffsets[:-1])
+						index += 3
 					elif assembly[index] == 'lookupswitch':
 						raise Exception('unimplemented')
 					elif assembly[index] == 'multianewarray':
@@ -993,7 +1013,7 @@ class ClassBytecode(object):
 					jumpDestinations[self.assembly[offset+1] + bytecodeOffset].append(bytecodeOffset)
 
 				lastBytecodeOffset = bytecodeOffset
-				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
+				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
 				if self.assembly[offset] == 'wide':
 					offset += 1
 			offset += 1
@@ -1063,7 +1083,7 @@ class ClassBytecode(object):
 					code += inst
 
 				lastBytecodeOffset = bytecodeOffset
-				bytecodeOffset = bytecodeOffset + self.assemblyToSize(offset)
+				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
 				if self.assembly[offset] == 'wide':
 					offset += 1
 			else:
@@ -1082,16 +1102,17 @@ class ClassBytecode(object):
 
 		return code
 
-	def assemblyToSize(self, offset):
-		if assemblyToSize.get(self.assembly[offset]) is not None:
-			return assemblyToSize[self.assembly[offset]]
+	def assemblyToSize(self, offset, bytecodeOffset):
+		if assemblyToSizeTable.get(self.assembly[offset]) is not None:
+			return assemblyToSizeTable[self.assembly[offset]]
 		elif self.assembly[offset] == 'wide':
 			if self.assembly[offset + 1] == 'iinc':
 				return 5
 			else:
 				return 3
 		elif self.assembly[offset] == 'tableswitch':
-			raise Exception('unimplemented')
+			padding = 4 - bytecodeOffset % 4
+			return padding + len(self.assembly[offset+2]) * 4 + 8
 		elif self.assembly[offset] == 'lookupswitch':
 			raise Exception('unimplemented')
 		else:
