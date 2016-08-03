@@ -102,6 +102,16 @@ def classConstantToPackageName(const):
 		return code[:code.rfind('.')]
 
 
+def classTypeToCode(flags):
+	if 'ACC_ENUM' in flags:
+		return 'enum'
+	elif 'ACC_INTERFACE' in flags:
+		return 'interface'
+	else:
+		return 'class'
+
+
+
 # converts the list of class access flags to a java code string describing the access
 def classAccessFlagsToCode(flags):
 	newflags = []
@@ -123,7 +133,8 @@ def classAccessFlagsToCode(flags):
 		elif flag == 'ACC_ANNOTATION': # Declared as an annotation type.
 			newflags.append('/*ANNOTATION*/')
 		elif flag == 'ACC_ENUM': # Declared as an enum type.
-			newflags.append('enum')
+			pass # this is handled elsewhere
+			# newflags.append('enum')
 		else:
 			raise Exception('invalid flag in class access flags: '+flag)
 	return ' '.join(newflags)

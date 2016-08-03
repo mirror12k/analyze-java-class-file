@@ -33,7 +33,7 @@ class AbstractClassRebuilder(object):
 			# filters method referencing assembly
 			'filter_method_references' : opts.get('filter_method_references', False),
 
-			# shows jump 
+			# shows jump destinations and sources using obvious symbols
 			'mark_jumps' : opts.get('mark_jumps', False),
 
 			'filter_method_name' : opts.get('filter_method_name', None),
@@ -51,7 +51,8 @@ class AbstractClassRebuilder(object):
 			if 'ACC_ABSTRACT' not in self.file.access_flags:
 				text += 'abstract '
 
-		text += classAccessFlagsToCode(self.file.access_flags) + ' class ' + classNameToSimpleNameCode(self.file.this_class)
+		text += classAccessFlagsToCode(self.file.access_flags) + ' '+ classTypeToCode(self.file.access_flags) +\
+			' ' + classNameToSimpleNameCode(self.file.this_class)
 		if classNameToCode(self.file.super_class) != 'java.lang.Object':
 			text += ' extends ' + classNameToCode(self.file.super_class)
 		text += ' {\n'
@@ -106,10 +107,11 @@ class AbstractClassRebuilder(object):
 			text += methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
 					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 
-		if 'exceptions_thrown' in method.codeStructure:
-			text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.codeStructure['exceptions_thrown'])
+		if 'ACC_ABSTRACT' not in method.accessFlags:
+			if 'exceptions_thrown' in method.codeStructure:
+				text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.codeStructure['exceptions_thrown'])
 
-		if self.opts['render_abstract'] or self.opts['list_class']:
+		if self.opts['render_abstract'] or self.opts['list_class'] or 'ACC_ABSTRACT' in method.accessFlags:
 			text += ';'
 		else:
 			text += ' {\n'

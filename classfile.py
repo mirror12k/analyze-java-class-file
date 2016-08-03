@@ -393,7 +393,8 @@ class ClassFileMethod(ClassFileObject):
 		for attribute in self.attributes:
 			attribute.link(classfile)
 
-		self.unpackCodeAttribute(classfile)
+		if 'ACC_ABSTRACT' not in self.accessFlags:
+			self.unpackCodeAttribute(classfile)
 
 		exceptionsAttribute = self.getAttributeByName('Exceptions')
 		if exceptionsAttribute is not None:
@@ -455,20 +456,21 @@ class ClassFileMethod(ClassFileObject):
 		for attribute in self.attributes:
 			attribute.inline()
 
-		for exception in self.codeStructure['exception_table']:
-			if exception['catch_type'] is not None:
-				exception['catch_type'] = exception['catch_type'].nameIndex.string
+		if 'ACC_ABSTRACT' not in self.accessFlags:
+			for exception in self.codeStructure['exception_table']:
+				if exception['catch_type'] is not None:
+					exception['catch_type'] = exception['catch_type'].nameIndex.string
 
-		for attribute in self.codeStructure['attributes']:
-			attribute.inline()
+			for attribute in self.codeStructure['attributes']:
+				attribute.inline()
+
+			if 'stackmap' in self.codeStructure:
+				self.inlineStackMap()
 
 		exceptionsAttribute = self.getAttributeByName('Exceptions')
 		if exceptionsAttribute is not None:
 			exceptionsAttribute.data = [ classconst.nameIndex.string for classconst in exceptionsAttribute.data ]
 			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
-
-		if 'stackmap' in self.codeStructure:
-			self.inlineStackMap()
 
 	def uninline(self, classfile):
 		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
@@ -1073,7 +1075,7 @@ class ClassFile(ClassFileObject):
 			self.super_class = fileStructure['super_class']
 
 		except Exception as e:
-			raise Exception('exception ('+str(type(e))+') occured while unpacking class file "'+self.filepath+'":', e)
+			raise Exception('exception ('+str(type(e))+') occured while unpacking class file "'+self.filepath+'":\n\t' + str(e))
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -1180,7 +1182,7 @@ class ClassFile(ClassFileObject):
 
 			self.handle.close()
 		except Exception as e:
-			raise Exception('exception ('+str(type(e))+') occured while packing class file "'+self.filepath+'":', e)
+			raise Exception('exception ('+str(type(e))+') occured while packing class file "'+self.filepath+'":\n\t' + str(e))
 
 	def packConstant(self, const):
 		data = struct.pack('B', const.tagType)

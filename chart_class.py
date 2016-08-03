@@ -36,11 +36,15 @@ class JavaClassChart(object):
 		self.stringReferences = sorted(self.stringReferences)
 
 	def __str__(self):
-		s = 'class ' + classNameToCode(self.classname) + ' extends ' + classNameToCode(self.superclassname)
+		s = classTypeToCode(self.classfile.access_flags) + ' ' + classNameToCode(self.classname)
+		if classNameToCode(self.superclassname) != 'java.lang.Object':
+			s +=  ' extends ' + classNameToCode(self.superclassname)
 		if len(self.classReferences) > 0:
-			s += '\n' + '\n'.join( '\t' + classNameToCode(classname) for classname in self.classReferences )
+			s += '\n\tclasses:\n'
+			s += '\n'.join( '\t\t' + classNameToCode(classname) for classname in self.classReferences )
 		if len(self.stringReferences) > 0:
-			s += '\n' + '\n'.join( '\t' + string for string in self.stringReferences )
+			s += '\n\tstrings:\n'
+			s += '\n'.join( '\t\t' + string for string in self.stringReferences )
 		return s
 			
 
@@ -59,7 +63,6 @@ def main(*args):
 			elif arg == '--classes' or arg == '-c':
 				opts['classes'] = True
 			else:
-				print('parsing', arg)
 				cf = classfile.openFile(arg)
 				cf.linkClassFile()
 				cf.inlineClassFile()
