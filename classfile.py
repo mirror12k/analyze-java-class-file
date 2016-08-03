@@ -1001,79 +1001,79 @@ class ClassFile(ClassFileObject):
 
 
 	def unpackClassFile(self, filepath):
-		self.handle = open(filepath, 'rb')
+		try:
+			self.handle = open(filepath, 'rb')
 
-		# read the file header
-		data = self.handle.read(10)
-		fileStructure = {}
-		fileStructure['magic'], fileStructure['version_minor'], fileStructure['version_major'], fileStructure['const_count'] = struct.unpack('>4sHHH', data)
-		
-		# extract the constants
-		constants = []
-		i = 1
-		while i < fileStructure['const_count']:
-			const = self.unpackConstant()
-			constants.append(const)
-			# print ('#', i, 'of', fileStructure['const_count'], const) # DEBUG UNPACK
-			i += 1
-			if const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
-				# longs and doubles take up two constant slots
-				# because the guy that designed this format is an idiot
+			# read the file header
+			data = self.handle.read(10)
+			fileStructure = {}
+			fileStructure['magic'], fileStructure['version_minor'], fileStructure['version_major'], fileStructure['const_count'] = struct.unpack('>4sHHH', data)
+			
+			# extract the constants
+			constants = []
+			i = 1
+			while i < fileStructure['const_count']:
+				const = self.unpackConstant()
+				constants.append(const)
+				# print ('#', i, 'of', fileStructure['const_count'], const) # DEBUG UNPACK
 				i += 1
-				constants.append(None)
-				
-		fileStructure['constants'] = constants
+				if const.tagName == 'CONSTANT_Long' or const.tagName == 'CONSTANT_Double':
+					# longs and doubles take up two constant slots
+					# because the guy that designed this format is an idiot
+					i += 1
+					constants.append(None)
+					
+			fileStructure['constants'] = constants
 
-		# more header data
-		data = self.handle.read(8)
-		fileStructure['access_flags'], fileStructure['this_class'], fileStructure['super_class'], fileStructure['interface_count'] = struct.unpack('>HHHH', data)
+			# more header data
+			data = self.handle.read(8)
+			fileStructure['access_flags'], fileStructure['this_class'], fileStructure['super_class'], fileStructure['interface_count'] = struct.unpack('>HHHH', data)
 
-		# extract interface indicies
-		fileStructure['interfaces'] = []
-		for _ in range(fileStructure['interface_count']):
+			# extract interface indicies
+			fileStructure['interfaces'] = []
+			for _ in range(fileStructure['interface_count']):
+				data = self.handle.read(2)
+				index, = struct.unpack('>H', data)
+				fileStructure['interfaces'].append(index)
+
+			# extract fields
 			data = self.handle.read(2)
-			index, = struct.unpack('>H', data)
-			fileStructure['interfaces'].append(index)
-
-		# extract fields
-		data = self.handle.read(2)
-		fileStructure['fields_count'], = struct.unpack('>H', data)
-		fileStructure['fields'] = [ self.unpackField() for _ in range(fileStructure['fields_count']) ]
+			fileStructure['fields_count'], = struct.unpack('>H', data)
+			fileStructure['fields'] = [ self.unpackField() for _ in range(fileStructure['fields_count']) ]
 
 
-		# extract methods
-		data = self.handle.read(2)
-		fileStructure['methods_count'], = struct.unpack('>H', data)
-		fileStructure['methods'] = [ self.unpackMethod() for _ in range(fileStructure['methods_count']) ]
+			# extract methods
+			data = self.handle.read(2)
+			fileStructure['methods_count'], = struct.unpack('>H', data)
+			fileStructure['methods'] = [ self.unpackMethod() for _ in range(fileStructure['methods_count']) ]
 
-		# extract attributes
-		data = self.handle.read(2)
-		fileStructure['attributes_count'], = struct.unpack('>H', data)
-		fileStructure['attributes'] = [ self.unpackAttribute() for _ in range(fileStructure['attributes_count']) ]
+			# extract attributes
+			data = self.handle.read(2)
+			fileStructure['attributes_count'], = struct.unpack('>H', data)
+			fileStructure['attributes'] = [ self.unpackAttribute() for _ in range(fileStructure['attributes_count']) ]
 
-		# used to store everything in fileStructure, but it's more efficient to store everything in instance variables
-		# self.fileStructure = fileStructure
-		self.handle.close()
+			# used to store everything in fileStructure, but it's more efficient to store everything in instance variables
+			# self.fileStructure = fileStructure
+			self.handle.close()
 
 
-		# transfer all the necessary data
-		self.constants = fileStructure['constants']
-		self.interfaces = fileStructure['interfaces']
-		self.fields = fileStructure['fields']
-		self.methods = fileStructure['methods']
-		self.attributes = fileStructure['attributes']
+			# transfer all the necessary data
+			self.constants = fileStructure['constants']
+			self.interfaces = fileStructure['interfaces']
+			self.fields = fileStructure['fields']
+			self.methods = fileStructure['methods']
+			self.attributes = fileStructure['attributes']
 
-		self.magic = fileStructure['magic']
-		self.version_major = fileStructure['version_major']
-		self.version_minor = fileStructure['version_minor']
+			self.magic = fileStructure['magic']
+			self.version_major = fileStructure['version_major']
+			self.version_minor = fileStructure['version_minor']
 
-		self.access_flags = fileStructure['access_flags']
-		self.this_class = fileStructure['this_class']
-		self.super_class = fileStructure['super_class']
+			self.access_flags = fileStructure['access_flags']
+			self.this_class = fileStructure['this_class']
+			self.super_class = fileStructure['super_class']
 
-		# # additional processing
-		# self.linkClassFile()
-		# self.inlineClassFile()
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while unpacking class file "'+self.filepath+'":', e)
 
 	def unpackConstant(self):
 		data = self.handle.read(1)
@@ -1142,43 +1142,45 @@ class ClassFile(ClassFileObject):
 		return ClassFileAttribute(attributeNameIndex, attributeData)
 
 	def packClassFile(self, filepath):
+		try:
+			# file writing
+			self.handle = open(filepath, 'wb')
 
-		# file writing
-		self.handle = open(filepath, 'wb')
+			# pack header
+			data = struct.pack('>4sHHH', self.magic, self.version_minor, self.version_major, len(self.constants) + 1)
+			self.handle.write(data)
+			
+			# pack constants
+			for const in self.constants:
+				if const is not None:
+					self.handle.write(self.packConstant(const))
+			
+			# pack more header
+			data = struct.pack('>HHHH', self.access_flags, self.this_class, self.super_class, len(self.interfaces))
+			self.handle.write(data)
 
-		# pack header
-		data = struct.pack('>4sHHH', self.magic, self.version_minor, self.version_major, len(self.constants) + 1)
-		self.handle.write(data)
-		
-		# pack constants
-		for const in self.constants:
-			if const is not None:
-				self.handle.write(self.packConstant(const))
-		
-		# pack more header
-		data = struct.pack('>HHHH', self.access_flags, self.this_class, self.super_class, len(self.interfaces))
-		self.handle.write(data)
+			# pack interface indicies
+			for interface in self.interfaces:
+				self.handle.write(struct.pack('>H', interface))
 
-		# pack interface indicies
-		for interface in self.interfaces:
-			self.handle.write(struct.pack('>H', interface))
+			# pack fields
+			self.handle.write(struct.pack('>H', len(self.fields)))
+			for field in self.fields:
+				self.handle.write(self.packField(field))
 
-		# pack fields
-		self.handle.write(struct.pack('>H', len(self.fields)))
-		for field in self.fields:
-			self.handle.write(self.packField(field))
+			# pack methods
+			self.handle.write(struct.pack('>H', len(self.methods)))
+			for method in self.methods:
+				self.handle.write(self.packMethod(method))
 
-		# pack methods
-		self.handle.write(struct.pack('>H', len(self.methods)))
-		for method in self.methods:
-			self.handle.write(self.packMethod(method))
+			# pack attributes
+			self.handle.write(struct.pack('>H', len(self.attributes)))
+			for attribute in self.attributes:
+				self.handle.write(self.packAttribute(attribute))
 
-		# pack attributes
-		self.handle.write(struct.pack('>H', len(self.attributes)))
-		for attribute in self.attributes:
-			self.handle.write(self.packAttribute(attribute))
-
-		self.handle.close()
+			self.handle.close()
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while packing class file "'+self.filepath+'":', e)
 
 	def packConstant(self, const):
 		data = struct.pack('B', const.tagType)
@@ -1280,134 +1282,150 @@ class ClassFile(ClassFileObject):
 
 
 	def linkClassFile(self):
-		self.unpackAccessFlags()
+		try:
+			self.unpackAccessFlags()
 
-		self.this_class = self.constantFromIndex(self.this_class, 'CONSTANT_Class')
-		self.super_class = self.constantFromIndex(self.super_class, 'CONSTANT_Class')
+			self.this_class = self.constantFromIndex(self.this_class, 'CONSTANT_Class')
+			self.super_class = self.constantFromIndex(self.super_class, 'CONSTANT_Class')
 
-		self.interfaces = [ self.constantFromIndex(index, 'CONSTANT_Class') for index in self.interfaces ]
-
-
-		for const in self.constants:
-			if const is not None: # can be None due to Long and Double constants creating holes
-				const.link(self)
-
-		for field in self.fields:
-			field.link(self)
-
-		for attribute in self.attributes:
-			attribute.link(self)
-
-		for method in self.methods:
-			method.link(self)
-
-		# for method in self.methods:
-		# 	method.unpackCodeAttribute(self)
+			self.interfaces = [ self.constantFromIndex(index, 'CONSTANT_Class') for index in self.interfaces ]
 
 
-		# unpack and link SourceFile attribute if it exists
-		sourcefile = self.getAttributeByName('SourceFile')
-		if sourcefile is not None:
-			sourcefileIndex, = struct.unpack('>H', sourcefile.data)
-			sourcefile.data = self.constantFromIndex(sourcefileIndex, 'CONSTANT_Utf8')
+			for const in self.constants:
+				if const is not None: # can be None due to Long and Double constants creating holes
+					const.link(self)
+
+			for field in self.fields:
+				field.link(self)
+
+			for attribute in self.attributes:
+				attribute.link(self)
+
+			for method in self.methods:
+				method.link(self)
+
+			# for method in self.methods:
+			# 	method.unpackCodeAttribute(self)
+
+
+			# unpack and link SourceFile attribute if it exists
+			sourcefile = self.getAttributeByName('SourceFile')
+			if sourcefile is not None:
+				sourcefileIndex, = struct.unpack('>H', sourcefile.data)
+				sourcefile.data = self.constantFromIndex(sourcefileIndex, 'CONSTANT_Utf8')
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while linking class file "'+self.filepath+'":\n\t' + str(e))
 
 
 
 
 	def unlinkClassFile(self):
-
-		# unlink and pack SourceFile attribute if it exists
-		sourcefile = self.getAttributeByName('SourceFile')
-		if sourcefile is not None:
-			sourcefileIndex = self.constantToIndex(sourcefile.data, 'CONSTANT_Utf8')
-			sourcefile.data = struct.pack('>H', sourcefileIndex)
-
-
-		# for method in self.methods:
-		# 	method.packCodeAttribute(self)
-
-		for method in self.methods:
-			method.unlink(self)
-
-		for field in self.fields:
-			field.unlink(self)
-
-		for attribute in self.attributes:
-			attribute.unlink(self)
+		try:
+			# unlink and pack SourceFile attribute if it exists
+			sourcefile = self.getAttributeByName('SourceFile')
+			if sourcefile is not None:
+				sourcefileIndex = self.constantToIndex(sourcefile.data, 'CONSTANT_Utf8')
+				sourcefile.data = struct.pack('>H', sourcefileIndex)
 
 
-		self.packAccessFlags()
+			# for method in self.methods:
+			# 	method.packCodeAttribute(self)
 
-		self.this_class = self.constantToIndex(self.this_class, 'CONSTANT_Class')
-		self.super_class = self.constantToIndex(self.super_class, 'CONSTANT_Class')
+			for method in self.methods:
+				method.unlink(self)
 
-		# indexes = []
-		# for interface in self.interfaces:
-		# 	if interface.tagName != 'CONSTANT_Class':
-		# 		raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
-		# 	const = self.constants[index - 1]
-		# 	indexes.append(self.constants.index(interface) + 1)
-		self.interfaces = [ self.constantToIndex(interface, 'CONSTANT_Class') for interface in self.interfaces ]
+			for field in self.fields:
+				field.unlink(self)
 
-		for const in self.constants:
-			if const is not None: # can be None due to Long and Double constants creating holes
-				const.unlink(self)
+			for attribute in self.attributes:
+				attribute.unlink(self)
+
+
+			self.packAccessFlags()
+
+			self.this_class = self.constantToIndex(self.this_class, 'CONSTANT_Class')
+			self.super_class = self.constantToIndex(self.super_class, 'CONSTANT_Class')
+
+			# indexes = []
+			# for interface in self.interfaces:
+			# 	if interface.tagName != 'CONSTANT_Class':
+			# 		raise Exception('invalid constant type for file.interface['+str(index)+']:'+interface.tagName)
+			# 	const = self.constants[index - 1]
+			# 	indexes.append(self.constants.index(interface) + 1)
+			self.interfaces = [ self.constantToIndex(interface, 'CONSTANT_Class') for interface in self.interfaces ]
+
+			for const in self.constants:
+				if const is not None: # can be None due to Long and Double constants creating holes
+					const.unlink(self)
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while unlinking class file "'+self.filepath+'":\n\t' + str(e))
 
 
 	def inlineClassFile(self):
-		for const in self.constants:
-			if const is not None: # can be None due to Long and Double constants creating holes
-				const.inline()
-		for const in self.constants:
-			if const is not None: # can be None due to Long and Double constants creating holes
-				const.setInlined(True)
+		try:
+			for const in self.constants:
+				if const is not None: # can be None due to Long and Double constants creating holes
+					const.inline()
+			for const in self.constants:
+				if const is not None: # can be None due to Long and Double constants creating holes
+					const.setInlined(True)
 
-		for field in self.fields:
-			field.inline()
-		for method in self.methods:
-			method.inline()
-		for attribute in self.attributes:
-			attribute.inline()
+			for field in self.fields:
+				field.inline()
+			for method in self.methods:
+				method.inline()
+			for attribute in self.attributes:
+				attribute.inline()
 
-		self.this_class = self.this_class.classname
-		self.super_class = self.super_class.classname
+			self.this_class = self.this_class.classname
+			self.super_class = self.super_class.classname
 
-		# inline SourceFile attribute if it exists
-		sourcefile = self.getAttributeByName('SourceFile')
-		if sourcefile is not None:
-			sourcefile.data = sourcefile.data.string
+			# inline SourceFile attribute if it exists
+			sourcefile = self.getAttributeByName('SourceFile')
+			if sourcefile is not None:
+				sourcefile.data = sourcefile.data.string
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while inlining class file "'+self.filepath+'":\n\t' + str(e))
 
 	def uninlineClassFile(self):
+		try:
+			# uninline SourceFile attribute if it exists
+			sourcefile = self.getAttributeByName('SourceFile')
+			if sourcefile is not None:
+				sourcefile.data = self.getSetInlinedConstant(createConstant('CONSTANT_Utf8', sourcefile.data))
 
-		# uninline SourceFile attribute if it exists
-		sourcefile = self.getAttributeByName('SourceFile')
-		if sourcefile is not None:
-			sourcefile.data = self.getSetInlinedConstant(createConstant('CONSTANT_Utf8', sourcefile.data))
+			self.this_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.this_class))
+			self.super_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.super_class))
 
-		self.this_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.this_class))
-		self.super_class = self.getSetInlinedConstant(createConstant('CONSTANT_Class', self.super_class))
+			for field in self.fields:
+				field.uninline(self)
+			for method in self.methods:
+				method.uninline(self)
+			for attribute in self.attributes:
+				attribute.uninline(self)
 
-		for field in self.fields:
-			field.uninline(self)
-		for method in self.methods:
-			method.uninline(self)
-		for attribute in self.attributes:
-			attribute.uninline(self)
-
-		for const in self.constants:
-			if const is not None: # can be None due to Long and Double constants creating holes
-				const.uninline(self)
-		for const in self.constants:
-			if const is not None: # can be None due to Long and Double constants creating holes
-				const.setInlined(False)
+			for const in self.constants:
+				if const is not None: # can be None due to Long and Double constants creating holes
+					const.uninline(self)
+			for const in self.constants:
+				if const is not None: # can be None due to Long and Double constants creating holes
+					const.setInlined(False)
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while uninlining class file "'+self.filepath+'":\n\t' + str(e))
 
 
 	def linkBytecode(self):
-		for method in self.methods:
-			method.codeStructure['code'] = classbytecode.decompileAndLink(method.codeStructure['code'], self)
+		try:
+			for method in self.methods:
+				method.codeStructure['code'] = classbytecode.decompileAndLink(method.codeStructure['code'], self)
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while linking bytecode of class file "'+self.filepath+'":\n\t' + str(e))
 	def unlinkBytecode(self):
-		for method in self.methods:
-			method.codeStructure['code'] = classbytecode.unlinkAndCompile(method.codeStructure['code'], self)
+		try:
+			for method in self.methods:
+				method.codeStructure['code'] = classbytecode.unlinkAndCompile(method.codeStructure['code'], self)
+		except Exception as e:
+			raise Exception('exception ('+str(type(e))+') occured while unlinking bytecode of class file "'+self.filepath+'":\n\t' + str(e))
 
 
 
