@@ -12,7 +12,7 @@ import classbytecode
 
 
 class AbstractClassRebuilder(object):
-	def __init__(self, filepath, opts={}):
+	def __init__(self, filepath, **opts):
 		self.file = classfile.openFile(filepath)
 		self.file.linkClassFile()
 		self.file.inlineClassFile()
@@ -27,6 +27,9 @@ class AbstractClassRebuilder(object):
 			'link_bytecode' : opts.get('link_bytecode', False),
 			# tells the classbytecode module to filter assembly instructions, looking for critical instructions such as instantiation, calls, branches, throws, and returns
 			'filter_critical' : opts.get('filter_critical', False),
+
+			'filter_method_name' : opts.get('filter_method_name', None),
+			'filter_method_descriptor' : opts.get('filter_method_descriptor', None),
 		}
 
 	# converts the given class file to a rough java code string
@@ -59,7 +62,11 @@ class AbstractClassRebuilder(object):
 		if len(self.file.methods) > 0:
 			text += '\t// methods\n'
 
-		for method in self.file.methods:
+		if self.opts['filter_method_name'] is None:
+			methodlist = self.file.methods
+		else:
+			methodlist = self.file.getMethodsByName(self.opts['filter_method_name'], self.opts['filter_method_descriptor'])
+		for method in methodlist:
 			text += indentCode(self.stringMethod(method)) + '\n'
 
 		text += '}\n'
@@ -83,10 +90,11 @@ class AbstractClassRebuilder(object):
 
 		if methodname == '<clinit>':
 			text += methodAccessFlagsToCode(method.accessFlags)
+		elif methodname == '<init>':
+			# methodname = classNameToSimpleNameCode(self.file.this_class)
+			text += methodAccessFlagsToCode(method.accessFlags) + ' ' + classNameToSimpleNameCode(self.file.this_class) +\
+					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 		else:
-			if methodname == '<init>':
-				methodname = classNameToSimpleNameCode(self.file.this_class)
-
 			text += methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
 					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 
@@ -130,7 +138,9 @@ def main(*args):
 		print("argument required")
 	else:
 		opts = {}
-		for arg in args:
+		i = 0
+		while i < len(args):
+			arg = args[i]
 			if arg == '--render_abstract' or arg == '-abs':
 				opts['render_abstract'] = True
 			elif arg == '--decompile_bytecode' or arg =='-db':
@@ -141,9 +151,16 @@ def main(*args):
 				opts['list_class'] = True
 			elif arg == '--filter_critical' or arg == '-fc':
 				opts['filter_critical'] = True
+			elif arg == '--filter_method_name' or arg == '-mn':
+				opts['filter_method_name'] = args[i+1]
+				i += 1
+			elif arg == '--filter_method_descriptor' or arg == '-md':
+				opts['filter_method_descriptor'] = args[i+1]
+				i += 1
 			else:
-				rebuilder = AbstractClassRebuilder(arg, opts)
+				rebuilder = AbstractClassRebuilder(arg, **opts)
 				print (rebuilder.stringClass())
+			i += 1
 
 
 
