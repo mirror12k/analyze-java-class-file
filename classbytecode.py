@@ -811,6 +811,21 @@ assemblyCriticalInstructionsListing = [
 
 
 
+assemblyFieldReferencingListing = [
+	'getstatic',
+	'putstatic',
+	'getfield',
+	'putfield',
+]
+
+assemblyMethodReferencingListing = [
+	'invokeinterface',
+	'invokedynamic',
+	'invokevirtual',
+	'invokespecial',
+	'invokestatic',
+]
+
 
 
 class ClassBytecode(object):

@@ -25,8 +25,16 @@ class AbstractClassRebuilder(object):
 			'decompile_bytecode' : opts.get('decompile_bytecode', False),
 			# tells the classbytecode module to link the constants of class file when disassembling instead of displaying constant numbers
 			'link_bytecode' : opts.get('link_bytecode', False),
+
 			# tells the classbytecode module to filter assembly instructions, looking for critical instructions such as instantiation, calls, branches, throws, and returns
 			'filter_critical' : opts.get('filter_critical', False),
+			# filters field referencing assembly
+			'filter_field_references' : opts.get('filter_field_references', False),
+			# filters method referencing assembly
+			'filter_method_references' : opts.get('filter_method_references', False),
+
+			# shows jump 
+			'mark_jumps' : opts.get('mark_jumps', False),
 
 			'filter_method_name' : opts.get('filter_method_name', None),
 			'filter_method_descriptor' : opts.get('filter_method_descriptor', None),
@@ -107,16 +115,24 @@ class AbstractClassRebuilder(object):
 			text += ' {\n'
 			if self.opts['decompile_bytecode']:
 				bc = classbytecode.ClassBytecode(
-					resolveConstants=not self.opts['link_bytecode'], classfile=self.file, exceptionTable=method.codeStructure['exception_table']
+					resolveConstants=not self.opts['link_bytecode'], classfile=self.file, exceptionTable=method.codeStructure['exception_table'],
+					markJumpDestinations=self.opts['mark_jumps'], markJumpSources=self.opts['mark_jumps'],
 				)
 				bc.decompile(method.codeStructure['code'])
 				if self.opts['link_bytecode']:
 					bc.linkAssembly(self.file)
 
+				assemblyFilter = []
 				if self.opts['filter_critical']:
-					assemblyFilter = classbytecode.assemblyCriticalInstructionsListing
-				else:
+					assemblyFilter += classbytecode.assemblyCriticalInstructionsListing
+				if self.opts['filter_field_references']:
+					assemblyFilter += classbytecode.assemblyFieldReferencingListing
+				if self.opts['filter_method_references']:
+					assemblyFilter += classbytecode.assemblyMethodReferencingListing
+				
+				if len(assemblyFilter) == 0:
 					assemblyFilter = None
+
 				text += indentCode(bc.stringAssembly(assemblyFilterList=assemblyFilter)) + '\n'
 			else:
 				text += '\t// code ...\n'
@@ -143,14 +159,23 @@ def main(*args):
 			arg = args[i]
 			if arg == '--render_abstract' or arg == '-abs':
 				opts['render_abstract'] = True
+			elif arg == '--list_class' or arg == '-l':
+				opts['list_class'] = True
+
 			elif arg == '--decompile_bytecode' or arg =='-db':
 				opts['decompile_bytecode'] = True
 			elif arg == '--link_bytecode' or arg == '-lb':
 				opts['link_bytecode'] = True
-			elif arg == '--list_class' or arg == '-l':
-				opts['list_class'] = True
+			elif arg == '--mark_jumps' or arg == '-mj':
+				opts['mark_jumps'] = True
+
+			elif arg == '--filter_field_references' or arg == '-ff':
+				opts['filter_field_references'] = True
+			elif arg == '--filter_method_references' or arg == '-fm':
+				opts['filter_method_references'] = True
 			elif arg == '--filter_critical' or arg == '-fc':
 				opts['filter_critical'] = True
+
 			elif arg == '--filter_method_name' or arg == '-mn':
 				opts['filter_method_name'] = args[i+1]
 				i += 1
