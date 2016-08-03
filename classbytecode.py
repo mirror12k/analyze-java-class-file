@@ -1008,9 +1008,15 @@ class ClassBytecode(object):
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str:
 				if self.assembly[offset] in assemblySearchList:
-					if self.assembly[offset+1] + bytecodeOffset not in jumpDestinations:
-						jumpDestinations[self.assembly[offset+1] + bytecodeOffset] = []
-					jumpDestinations[self.assembly[offset+1] + bytecodeOffset].append(bytecodeOffset)
+					if self.assembly[offset] == 'tableswitch':
+						for dest in self.assembly[offset+2]:
+							if dest + bytecodeOffset not in jumpDestinations:
+								jumpDestinations[dest + bytecodeOffset] = []
+							jumpDestinations[dest + bytecodeOffset].append(bytecodeOffset)
+					else:
+						if self.assembly[offset+1] + bytecodeOffset not in jumpDestinations:
+							jumpDestinations[self.assembly[offset+1] + bytecodeOffset] = []
+						jumpDestinations[self.assembly[offset+1] + bytecodeOffset].append(bytecodeOffset)
 
 				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
@@ -1035,6 +1041,7 @@ class ClassBytecode(object):
 		code = ''
 
 		if self.markJumpDestinations:
+			tableJumpDestinations = self.calculateJumpDestinations(['tableswitch'])
 			absoluteJumpDestinations = self.calculateJumpDestinations(assemblyAbsoluteJumpListing)
 			conditionalJumpDestinations = self.calculateJumpDestinations(assemblyConditionalJumpListing)
 			if self.exceptionTable is not None:
@@ -1064,6 +1071,8 @@ class ClassBytecode(object):
 						'[{}:{}] : {}'.format(entry['start_pc'], entry['end_pc'], str(classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*')) \
 							for entry in exceptionJumpDestinations[bytecodeOffset] \
 					) + '\n'
+				if self.markJumpDestinations and bytecodeOffset in tableJumpDestinations:
+					code += '<<## ' + ','.join(str(source) for source in tableJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in absoluteJumpDestinations:
 					code += '<<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
@@ -1093,6 +1102,20 @@ class ClassBytecode(object):
 					elif self.resolveConstants and type(self.assembly[offset-1]) == str and lastInstruction in assemblyConstantReferenceListing:
 						code += ' #' + str(self.assembly[offset]) + '\t\t// ' +\
 								stringConstantSimple(self.classfile.constantFromIndex(self.assembly[offset]))
+					elif type(self.assembly[offset-1]) == str and lastInstruction == 'tableswitch':
+						code += ' (' + str(self.assembly[offset]) + ' .. ' + str(self.assembly[offset] + len(self.assembly[offset+1]) - 2) + ')'
+					elif type(self.assembly[offset-2]) == str and lastInstruction == 'tableswitch':
+						code += ' {\n'
+						for i in range(len(self.assembly[offset]) - 1):
+							if self.globalizeJumps:
+								code += '\t' + str(self.assembly[offset-1] + i) + ': ' + str(self.assembly[offset][i] + lastBytecodeOffset) + '\n'
+							else:
+								code += '\t' + str(self.assembly[offset-1] + i) + ': ' + str(self.assembly[offset][i]) + '\n'
+						if self.globalizeJumps:
+							code += '\tdefault: ' + str(self.assembly[offset][-1] + lastBytecodeOffset) + '\n'
+						else:
+							code += '\tdefault: ' + str(self.assembly[offset][-1]) + '\n'
+						code += '}'
 					else:
 						if isinstance(self.assembly[offset], classfile.ClassFileConstant):
 							code += ' ' + stringConstantSimple(self.assembly[offset])
