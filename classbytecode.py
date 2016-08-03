@@ -756,6 +756,10 @@ assemblyAbsoluteLeaveListing = [
 
 
 assemblyCriticalInstructionsListing = [
+	'ldc',
+	'ldc_w',
+	'ldc2_w',
+
 	'getstatic',
 	'putstatic',
 	'getfield',
@@ -801,6 +805,8 @@ assemblyCriticalInstructionsListing = [
 	'if_acmpne',
 	'ifnull',
 	'ifnonnull',
+
+	'tableswitch',
 ]
 
 
@@ -1009,10 +1015,15 @@ class ClassBytecode(object):
 			if type(self.assembly[offset]) == str:
 				if self.assembly[offset] in assemblySearchList:
 					if self.assembly[offset] == 'tableswitch':
-						for dest in self.assembly[offset+2]:
+						for i in range(len(self.assembly[offset+2]) - 1):
+							dest = self.assembly[offset+2][i]
 							if dest + bytecodeOffset not in jumpDestinations:
 								jumpDestinations[dest + bytecodeOffset] = []
-							jumpDestinations[dest + bytecodeOffset].append(bytecodeOffset)
+							jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[' + str(self.assembly[offset+1] + i) + ']')
+						dest = self.assembly[offset+2][-1]
+						if dest + bytecodeOffset not in jumpDestinations:
+							jumpDestinations[dest + bytecodeOffset] = []
+						jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[default]')
 					else:
 						if self.assembly[offset+1] + bytecodeOffset not in jumpDestinations:
 							jumpDestinations[self.assembly[offset+1] + bytecodeOffset] = []
@@ -1060,23 +1071,26 @@ class ClassBytecode(object):
 					code += '\n'
 
 				if self.markJumpSources and lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
-					code += '\t>>--\n'
+					if lastInstruction in assemblyJumpListing:
+						code += '\t' + str(lastBytecodeOffset) +' >>-- ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
+					else:
+						code += '\t' + str(lastBytecodeOffset) +' >>-->>\n'
 					code += '\n'
 				if self.markJumpSources and lastInstruction is not None and lastInstruction in assemblyConditionalJumpListing:
-					code += '\t>>??\n'
+					code += '\t' + str(lastBytecodeOffset) +' >>?? ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
 
 
 				if self.markJumpDestinations and bytecodeOffset in exceptionJumpDestinations:
-					code += '<<** ' + ','.join(\
+					code += '\t' + str(bytecodeOffset) + ' <<** ' + ','.join(\
 						'[{}:{}] : {}'.format(entry['start_pc'], entry['end_pc'], str(classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*')) \
 							for entry in exceptionJumpDestinations[bytecodeOffset] \
 					) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in tableJumpDestinations:
-					code += '<<## ' + ','.join(str(source) for source in tableJumpDestinations[bytecodeOffset]) + '\n'
+					code += '\t' + str(bytecodeOffset) + ' <<## ' + ','.join(str(source) for source in tableJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in absoluteJumpDestinations:
-					code += '<<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
+					code += '\t' + str(bytecodeOffset) + ' <<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
-					code += '<<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
+					code += '\t' + str(bytecodeOffset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
 
 				if self.assembly[offset] == 'wide':
 					inst = 'wide ' + self.assembly[offset+1]
@@ -1086,7 +1100,7 @@ class ClassBytecode(object):
 					lastInstruction = inst
 
 				if self.labelOffsets and (assemblyFilterList is None or lastInstruction in assemblyFilterList):
-					code += str(bytecodeOffset) + ':\t'
+					code += str(bytecodeOffset) + ':\t\t'
 
 				if assemblyFilterList is None or lastInstruction in assemblyFilterList:
 					code += inst

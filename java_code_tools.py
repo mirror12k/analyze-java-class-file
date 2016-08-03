@@ -7,11 +7,11 @@
 # different from the output of str(const)
 def stringConstantSimple(const):
 	if const.tagName == 'CONSTANT_Utf8':
-		return '"' + const.string + '"'
+		return 'utf8 ' + repr(const.string) + ''
 	elif const.tagName == 'CONSTANT_Class':
 		return 'class ' + classConstantToName(const)
 	elif const.tagName == 'CONSTANT_String':
-		return 'string "' + const.stringIndex.string + '"'
+		return 'string ' + repr(const.stringIndex.string) + ''
 	elif const.tagName == 'CONSTANT_InterfaceMethodref':
 		argtypes, rettype = methodDescriptorToCode(const.nameAndTypeIndex.descriptorIndex.string)
 		return 'interface method ' + rettype + ' ' + classConstantToName(const.classIndex) +\
