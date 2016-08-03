@@ -39,6 +39,12 @@ class JavaClassChart(object):
 		s = classTypeToCode(self.classfile.access_flags) + ' ' + classNameToCode(self.classname)
 		if classNameToCode(self.superclassname) != 'java.lang.Object':
 			s +=  ' extends ' + classNameToCode(self.superclassname)
+		if len(self.classfile.interfaces) > 0:
+			if classTypeToCode(self.classfile.access_flags) == 'class':
+				s += ' implements '
+			else:
+				s += ' extends '
+			s += ', '.join(classNameToCode(interface) for interface in self.classfile.interfaces)
 		if len(self.classReferences) > 0:
 			s += '\n\tclasses:\n'
 			s += '\n'.join( '\t\t' + classNameToCode(classname) for classname in self.classReferences )

@@ -404,7 +404,8 @@ class ClassFileMethod(ClassFileObject):
 			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
 
 	def unlink(self, classfile):
-		self.packCodeAttribute(classfile)
+		if 'ACC_ABSTRACT' not in self.accessFlags:
+			self.packCodeAttribute(classfile)
 
 		exceptionsAttribute = self.getAttributeByName('Exceptions')
 		if exceptionsAttribute is not None:
@@ -479,20 +480,21 @@ class ClassFileMethod(ClassFileObject):
 		for attribute in self.attributes:
 			attribute.uninline(classfile)
 
-		for exception in self.codeStructure['exception_table']:
-			if exception['catch_type'] is not None:
-				exception['catch_type'] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', exception['catch_type']))
+		if 'ACC_ABSTRACT' not in self.accessFlags:
+			for exception in self.codeStructure['exception_table']:
+				if exception['catch_type'] is not None:
+					exception['catch_type'] = classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', exception['catch_type']))
 
-		for attribute in self.codeStructure['attributes']:
-			attribute.uninline(classfile)
+			for attribute in self.codeStructure['attributes']:
+				attribute.uninline(classfile)
+
+			if 'stackmap' in self.codeStructure:
+				self.uninlineStackMap(classfile)
 
 		exceptionsAttribute = self.getAttributeByName('Exceptions')
 		if exceptionsAttribute is not None:
 			exceptionsAttribute.data = [ classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', classname)) for classname in exceptionsAttribute.data ]
 			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
-
-		if 'stackmap' in self.codeStructure:
-			self.uninlineStackMap(classfile)
 
 
 	def unpackCodeAttribute(self, classfile):
@@ -1378,6 +1380,7 @@ class ClassFile(ClassFileObject):
 				method.inline()
 			for attribute in self.attributes:
 				attribute.inline()
+			self.interfaces = [ interface.nameIndex.string for interface in self.interfaces ]
 
 			self.this_class = self.this_class.classname
 			self.super_class = self.super_class.classname
@@ -1405,6 +1408,7 @@ class ClassFile(ClassFileObject):
 				method.uninline(self)
 			for attribute in self.attributes:
 				attribute.uninline(self)
+			self.interfaces = [ self.getSetInlinedConstant(createConstant('CONSTANT_Class', interface)) for interface in self.interfaces ]
 
 			for const in self.constants:
 				if const is not None: # can be None due to Long and Double constants creating holes
@@ -1419,13 +1423,15 @@ class ClassFile(ClassFileObject):
 	def linkBytecode(self):
 		try:
 			for method in self.methods:
-				method.codeStructure['code'] = classbytecode.decompileAndLink(method.codeStructure['code'], self)
+				if 'ACC_ABSTRACT' not in method.accessFlags:
+					method.codeStructure['code'] = classbytecode.decompileAndLink(method.codeStructure['code'], self)
 		except Exception as e:
 			raise Exception('exception ('+str(type(e))+') occured while linking bytecode of class file "'+self.filepath+'":\n\t' + str(e))
 	def unlinkBytecode(self):
 		try:
 			for method in self.methods:
-				method.codeStructure['code'] = classbytecode.unlinkAndCompile(method.codeStructure['code'], self)
+				if 'ACC_ABSTRACT' not in method.accessFlags:
+					method.codeStructure['code'] = classbytecode.unlinkAndCompile(method.codeStructure['code'], self)
 		except Exception as e:
 			raise Exception('exception ('+str(type(e))+') occured while unlinking bytecode of class file "'+self.filepath+'":\n\t' + str(e))
 

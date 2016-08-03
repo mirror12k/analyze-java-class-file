@@ -50,6 +50,9 @@ def main(*args):
 			print("\t file.super_class = " + str(file.super_class))
 			print("\t file.access_flags = " + str(file.access_flags))
 
+			print ("class interfaces:")
+			for interface in file.interfaces:
+				print ("\t" + str(interface))
 			print ("class constants:")
 			for i in range(len(file.constants)):
 				print ("\t" + str(i+1) + ' : ' + str(file.constants[i]))

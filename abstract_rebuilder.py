@@ -55,6 +55,12 @@ class AbstractClassRebuilder(object):
 			' ' + classNameToSimpleNameCode(self.file.this_class)
 		if classNameToCode(self.file.super_class) != 'java.lang.Object':
 			text += ' extends ' + classNameToCode(self.file.super_class)
+		if len(self.file.interfaces) > 0:
+			if classTypeToCode(self.file.access_flags) == 'class':
+				text += ' implements '
+			else:
+				text += ' extends '
+			text += ', '.join(classNameToCode(interface) for interface in self.file.interfaces)
 		text += ' {\n'
 
 
