@@ -1062,6 +1062,17 @@ class ClassBytecode(object):
 						if dest + bytecodeOffset not in jumpDestinations:
 							jumpDestinations[dest + bytecodeOffset] = []
 						jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[default]')
+					elif self.assembly[offset] == 'lookupswitch':
+						jumpOffsets = self.assembly[offset+1]
+						for key in sorted([ key for key in jumpOffsets.keys() if type(key) == int ]):
+							dest = self.assembly[offset+1][key]
+							if dest + bytecodeOffset not in jumpDestinations:
+								jumpDestinations[dest + bytecodeOffset] = []
+							jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[' + str(key) + ']')
+						dest = self.assembly[offset+1]['default']
+						if dest + bytecodeOffset not in jumpDestinations:
+							jumpDestinations[dest + bytecodeOffset] = []
+						jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[default]')
 					else:
 						if self.assembly[offset+1] + bytecodeOffset not in jumpDestinations:
 							jumpDestinations[self.assembly[offset+1] + bytecodeOffset] = []
@@ -1090,7 +1101,7 @@ class ClassBytecode(object):
 		code = ''
 
 		if self.markJumpDestinations:
-			tableJumpDestinations = self.calculateJumpDestinations(['tableswitch'])
+			tableJumpDestinations = self.calculateJumpDestinations(['tableswitch', 'lookupswitch'])
 			absoluteJumpDestinations = self.calculateJumpDestinations(assemblyAbsoluteJumpListing)
 			conditionalJumpDestinations = self.calculateJumpDestinations(assemblyConditionalJumpListing)
 			if self.exceptionTable is not None:
@@ -1167,6 +1178,18 @@ class ClassBytecode(object):
 							code += '\tdefault: ' + str(self.assembly[offset][-1] + lastBytecodeOffset) + '\n'
 						else:
 							code += '\tdefault: ' + str(self.assembly[offset][-1]) + '\n'
+						code += '}'
+					elif type(self.assembly[offset-1]) == str and lastInstruction == 'lookupswitch':
+						code += ' {\n'
+						for key in sorted([ key for key in self.assembly[offset].keys() if type(key) == int ]):
+							if self.globalizeJumps:
+								code += '\t' + str(key) + ': ' + str(self.assembly[offset][key] + lastBytecodeOffset) + '\n'
+							else:
+								code += '\t' + str(key) + ': ' + str(self.assembly[offset][key]) + '\n'
+						if self.globalizeJumps:
+							code += '\tdefault: ' + str(self.assembly[offset]['default'] + lastBytecodeOffset) + '\n'
+						else:
+							code += '\tdefault: ' + str(self.assembly[offset]['default']) + '\n'
 						code += '}'
 					else:
 						if isinstance(self.assembly[offset], classfile.ClassFileConstant):
