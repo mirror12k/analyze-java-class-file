@@ -113,9 +113,9 @@ class AbstractClassRebuilder(object):
 			text += methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
 					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 
-		if not method.isAbstract():
-			if 'exceptions_thrown' in method.codeStructure:
-				text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.codeStructure['exceptions_thrown'])
+		# if not method.isAbstract():
+		if method.exceptionsThrown is not None:
+			text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.exceptionsThrown)
 
 		if self.opts['render_abstract'] or self.opts['list_class'] or method.isAbstract():
 			text += ';'

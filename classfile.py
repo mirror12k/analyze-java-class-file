@@ -355,6 +355,8 @@ class ClassFileMethod(ClassFileObject):
 		self.descriptorIndex = descriptorIndex
 		self.attributes = attributes
 
+		self.exceptionsThrown = None
+
 		self.codeStructure = None
 
 
@@ -405,7 +407,9 @@ class ClassFileMethod(ClassFileObject):
 			numberExceptions, = struct.unpack('>H', exceptionsAttribute.data[:2])
 			exceptionsAttribute.data = [ index for index in struct.unpack('>' + 'H' * numberExceptions, exceptionsAttribute.data[2:]) ]
 			exceptionsAttribute.data = [ classfile.constantFromIndex(index, 'CONSTANT_Class') for index in exceptionsAttribute.data ]
-			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+			# if not self.isAbstract():
+			# 	self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+			self.exceptionsThrown = list(exceptionsAttribute.data)
 
 	def unlink(self, classfile):
 		if 'ACC_ABSTRACT' not in self.accessFlags:
@@ -475,7 +479,8 @@ class ClassFileMethod(ClassFileObject):
 		exceptionsAttribute = self.getAttributeByName('Exceptions')
 		if exceptionsAttribute is not None:
 			exceptionsAttribute.data = [ classconst.nameIndex.string for classconst in exceptionsAttribute.data ]
-			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+			# self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+			self.exceptionsThrown = list(exceptionsAttribute.data)
 
 	def uninline(self, classfile):
 		self.nameIndex = classfile.getSetInlinedConstant(createConstant('CONSTANT_Utf8', self.name))
@@ -498,7 +503,8 @@ class ClassFileMethod(ClassFileObject):
 		exceptionsAttribute = self.getAttributeByName('Exceptions')
 		if exceptionsAttribute is not None:
 			exceptionsAttribute.data = [ classfile.getSetInlinedConstant(createConstant('CONSTANT_Class', classname)) for classname in exceptionsAttribute.data ]
-			self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+			# self.codeStructure['exceptions_thrown'] = list(exceptionsAttribute.data)
+			self.exceptionsThrown = list(exceptionsAttribute.data)
 
 
 	def unpackCodeAttribute(self, classfile):
