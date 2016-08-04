@@ -888,6 +888,7 @@ class ClassBytecode(object):
 					offset += 5
 				elif instruction == 'tableswitch':
 					self.assembly.append(instruction)
+					offset += 1
 					if offset % 4 != 0:
 						offset += 4 - offset % 4
 					# print("offset:", offset)
@@ -902,7 +903,23 @@ class ClassBytecode(object):
 					offset += (high - low + 1) * 4
 
 				elif instruction == 'lookupswitch':
-					raise Exception('unimplemented')
+					self.assembly.append(instruction)
+					offset += 1
+					if offset % 4 != 0:
+						offset += 4 - offset % 4
+					# i have no clue why npairs can be signed, but it's in the spec for some reason
+					defaultGoto, npairs = struct.unpack('>ii', bytecode[offset:offset+8])
+					offset += 8
+					# print('debug:', defaultGoto, npairs)
+					# print(bytecode[offset+8*0:4+offset+8*0])
+					# print(bytecode[4+offset+8*0:8+offset+8*0])lookupswitch
+					# lookupswitch is stored in a format of ['lookupswitch', { keyn : jump offsetn, ..., 'default' : default offset }]
+					jumpOffsets = { struct.unpack('>i', bytecode[offset+8*i:4+offset+8*i])[0] : struct.unpack('>i', bytecode[4+offset+8*i:8+offset+8*i])[0] \
+							for i in range(npairs) }
+					jumpOffsets['default'] = defaultGoto
+					self.assembly.append(jumpOffsets)
+					offset += npairs * 8
+
 				elif instruction == 'multianewarray':
 					self.assembly.append(instruction)
 					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
@@ -974,7 +991,14 @@ class ClassBytecode(object):
 						bytecode += struct.pack('>' + 'i' * (len(jumpOffsets) - 1), *jumpOffsets[:-1])
 						index += 3
 					elif assembly[index] == 'lookupswitch':
-						raise Exception('unimplemented')
+						bytecode += struct.pack('>B', code)
+						if len(bytecode) % 4 != 0:
+							bytecode += b'\x00' * (4 - len(bytecode) % 4) # padding
+						jumpOffsets = assembly[index+1]
+						bytecode += struct.pack('>ii', jumpOffsets['default'], len(jumpOffsets) - 1)
+						for key in sorted([ key for key in jumpOffsets.keys() if type(key) == int ]):
+							bytecode += struct.pack('>ii', key, jumpOffsets[key])
+						index += 2
 					elif assembly[index] == 'multianewarray':
 						bytecode += struct.pack('>BHB', code, assembly[index + 1], assembly[index + 2]) 
 						index += 3
@@ -1165,7 +1189,8 @@ class ClassBytecode(object):
 			padding = 4 - bytecodeOffset % 4
 			return padding + len(self.assembly[offset+2]) * 4 + 8
 		elif self.assembly[offset] == 'lookupswitch':
-			raise Exception('unimplemented')
+			padding = 4 - bytecodeOffset % 4
+			return padding + len(self.assembly[offset+1]) * 8
 		else:
 			raise Exception('unknown assembly: '+self.assembly[offset])
 
