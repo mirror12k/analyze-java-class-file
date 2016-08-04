@@ -13,37 +13,62 @@ import classbytecode
 class JavaClassChart(object):
 	def __init__(self, classfile, **opts):
 		self.classfile = classfile	
+
 		self.classname = classfile.this_class
 		self.superclassname = classfile.super_class
-		self.classReferences = set()
-		self.stringReferences = set()
+
+		self.internalClasses = set()
 		self.constantReferencesByMethod = {}
 		self.methodsList = set()
 		self.fieldsList = set()
+		self.classReferences = set()
+		self.stringReferences = set()
+
+		self.searchMethodList = set()
+		self.searchClassInstantiationList = set()
 
 		if opts.get('strings', False):
-			self.parseStrings()
+			self.stringReferences = self.parseStrings()
 		if opts.get('constants_by_method', False):
-			self.parseConstantsByMethod()
+			self.constantReferencesByMethod = self.parseConstantsByMethod()
 		if opts.get('classes', False):
-			self.parseClassReferences()
+			self.classReferences = self.parseClassReferences()
+		if opts.get('classes_internal', False):
+			self.internalClasses = self.parseInternalClasses()
 		if opts.get('methods', False):
-			self.parseMethods()
+			self.methodsList = self.parseMethods()
 		if opts.get('fields', False):
-			self.parseFields()
+			self.fieldsList = self.parseFields()
+		if opts.get('search_method', None) is not None:
+			self.searchMethodList = self.searchMethod(opts['search_method'])
+		if opts.get('search_new', None) is not None:
+			self.searchClassInstantiationList = self.searchClassInstantiation(opts['search_new'])
 
 
 	def parseClassReferences(self):
+		result = set()
 		for const in self.classfile.constants:
 			if const is not None and const.tagName == 'CONSTANT_Class':
-				self.classReferences.add(const.classname)
-		self.classReferences = sorted(self.classReferences)
+				result.add(const.classname)
+		result = sorted(result)
+		return result
+	def parseInternalClasses(self):
+		result = set()
+		for const in self.classfile.constants:
+			if const is not None and const.tagName == 'CONSTANT_Class':
+				if const.classname[:len(self.classfile.this_class)+1] == self.classfile.this_class + '$':
+					result.add(const.classname)
+		result = sorted(result)
+		return result
 	def parseStrings(self):
+		result = set()
 		for const in self.classfile.constants:
 			if const is not None and const.tagName == 'CONSTANT_String':
-				self.stringReferences.add(repr(const.string))
-		self.stringReferences = sorted(self.stringReferences)
+				result.add(repr(const.string))
+		result = sorted(result)
+		return result
 	def parseConstantsByMethod(self):
+		result = {}
 		for method in self.classfile.methods:
 			if not method.isAbstract():
 				referencedConstants = set()
@@ -55,16 +80,63 @@ class JavaClassChart(object):
 				referencedConstants = sorted(referencedConstants)
 
 				methodpointer = methodToMethodDescription(method)
-				self.constantReferencesByMethod[methodpointer] = referencedConstants
+				result[methodpointer] = referencedConstants
+		return result
 
 	def parseMethods(self):
+		result = set()
 		for method in self.classfile.methods:
-			self.methodsList.add(methodToMethodDescription(method))
-		self.methodsList = sorted(self.methodsList)
+			result.add(methodToMethodDescription(method))
+		result = sorted(result)
+		return result
 	def parseFields(self):
+		result = set()
 		for field in self.classfile.fields:
-			self.fieldsList.add(fieldToFieldDescription(field))
-		self.fieldsList = sorted(self.fieldsList)
+			result.add(fieldToFieldDescription(field))
+		result = sorted(result)
+		return result
+	def searchMethod(self, method):
+		result = set()
+		if method.rfind('.') == -1:
+			classSearch = None
+			methodSearch = method
+		else:
+			classSearch = method[:method.rfind('.')]
+			methodSearch = method[method.rfind('.')+1:]
+
+		for const in self.classfile.constants:
+			if const is not None:
+				if const.tagName == 'CONSTANT_Methodref' or const.tagName == 'CONSTANT_Fieldref' or const.tagName == 'CONSTANT_InterfaceMethodref':
+					if const.methodname == methodSearch:
+						if classSearch is None or classNameToCode(const.classname) == classSearch:
+							result.add(stringConstantSimple(const))
+		result = sorted(result)
+		return result
+	def searchClassInstantiation(self, classname):
+		return self.searchMethod(classname + '.<init>')
+
+
+
+	def hasSomething(self):
+		''' returns true only if it has at least one parsed-item. allows easy filtering of irrelavent classes '''
+		if len(self.classReferences) > 0:
+			return True
+		elif len(self.internalClasses) > 0:
+			return True
+		elif len(self.fieldsList) > 0:
+			return True
+		elif len(self.methodsList) > 0:
+			return True
+		elif len(self.constantReferencesByMethod) > 0:
+			return True
+		elif len(self.stringReferences) > 0:
+			return True
+		elif len(self.searchMethodList) > 0:
+			return True
+		elif len(self.searchClassInstantiationList) > 0:
+			return True
+		else:
+			return False
 
 	def __str__(self):
 		s = classTypeToCode(self.classfile.access_flags) + ' ' + classNameToCode(self.classname)
@@ -76,23 +148,33 @@ class JavaClassChart(object):
 			else:
 				s += ' extends '
 			s += ', '.join(classNameToCode(interface) for interface in self.classfile.interfaces)
-		if len(self.classReferences) > 0:
-			s += '\n\tclasses:\n'
-			s += '\n'.join( '\t\t' + classNameToCode(classname) for classname in self.classReferences )
-		if len(self.stringReferences) > 0:
-			s += '\n\tstrings:\n'
-			s += '\n'.join( '\t\t' + string for string in self.stringReferences )
+		if len(self.internalClasses) > 0:
+			s += '\n\tinternal classes:\n'
+			s += '\n'.join( '\t\t' + classNameToCode(classname) for classname in self.internalClasses )
+		if len(self.fieldsList) > 0:
+			s += '\n\tfields:\n'
+			s += '\n'.join( '\t\t' + field for field in self.fieldsList )
+		if len(self.methodsList) > 0:
+			s += '\n\tmethods:\n'
+			s += '\n'.join( '\t\t' + methodpointer for methodpointer in self.methodsList )
 		if len(self.constantReferencesByMethod) > 0:
 			s += '\n\tconstants by method:\n'
 			for methodpointer in self.constantReferencesByMethod:
 				s += '\n\t\t' + methodpointer + ':\n'
 				s += '\n'.join( '\t\t\t' + str(const) for const in self.constantReferencesByMethod[methodpointer] )
-		if len(self.methodsList) > 0:
-			s += '\n\tmethods:\n'
-			s += '\n'.join( '\t\t' + methodpointer for methodpointer in self.methodsList )
-		if len(self.fieldsList) > 0:
-			s += '\n\tfields:\n'
-			s += '\n'.join( '\t\t' + field for field in self.fieldsList )
+		if len(self.stringReferences) > 0:
+			s += '\n\tstrings:\n'
+			s += '\n'.join( '\t\t' + string for string in self.stringReferences )
+		if len(self.classReferences) > 0:
+			s += '\n\tclasses referenced:\n'
+			s += '\n'.join( '\t\t' + classNameToCode(classname) for classname in self.classReferences )
+
+		if len(self.searchMethodList) > 0:
+			s += '\n\tmatching method references:\n'
+			s += '\n'.join( '\t\t' + classNameToCode(method) for method in self.searchMethodList )
+		if len(self.searchClassInstantiationList) > 0:
+			s += '\n\tinstantiates class:\n'
+			s += '\n'.join( '\t\t' + classNameToCode(method) for method in self.searchClassInstantiationList )
 
 		return s
 
@@ -103,20 +185,41 @@ def main(*args):
 	if len(args) == 0:
 		print("argument required")
 	else:
-		opts = {}
+		opts = {
+			'filter_empty' : False,
+		}
 		i = 0
 		while i < len(args):
 			arg = args[i]
 			if arg == '--strings' or arg == '-s':
+				# displays string references in the class (not utf8 constants, specifically string constants)
 				opts['strings'] = True
 			elif arg == '--constants_by_method' or arg == '-cm':
+				# displays constants loaded by various methods
 				opts['constants_by_method'] = True
 			elif arg == '--classes' or arg == '-c':
+				# displays all classes referenced in the constants
 				opts['classes'] = True
+			elif arg == '--classes_internal' or arg == '-ci':
+				# displays all internal classes declared inside this class (uses constants, doesn't search files)
+				opts['classes_internal'] = True
 			elif arg == '--methods' or arg == '-m':
+				# displays all methods declared in the class
 				opts['methods'] = True
 			elif arg == '--fields' or arg == '-f':
+				# displays all fields declared in the class
 				opts['fields'] = True
+			elif arg == '--search_method' or arg == '-sm':
+				# displays references to a specic method
+				opts['search_method'] = args[i+1]
+				i += 1
+			elif arg == '--search_new' or arg == '-new':
+				# displays references to instantiations of a specific class (looks for references to their "<init>" methods)
+				opts['search_new'] = args[i+1]
+				i += 1
+			elif arg == '--filter_empty' or arg == '-E':
+				# skips classes which haven't found any items requested in the search
+				opts['filter_empty'] = True
 			else:
 				cf = classfile.openFile(arg)
 				cf.linkClassFile()
@@ -124,7 +227,8 @@ def main(*args):
 				cf.linkBytecode()
 
 				chart = JavaClassChart(cf, **opts)
-				print (chart)
+				if opts['filter_empty'] == False or chart.hasSomething():
+					print (chart)
 			i += 1
 
 
