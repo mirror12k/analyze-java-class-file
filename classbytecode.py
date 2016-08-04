@@ -901,7 +901,6 @@ class ClassBytecode(object):
 					self.assembly.append(jumpOffsets + [defaultGoto])
 					offset += (high - low + 1) * 4
 
-					print(jumpOffsets)
 				elif instruction == 'lookupswitch':
 					raise Exception('unimplemented')
 				elif instruction == 'multianewarray':

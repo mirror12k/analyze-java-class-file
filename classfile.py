@@ -358,6 +358,10 @@ class ClassFileMethod(ClassFileObject):
 		self.codeStructure = None
 
 
+	def isAbstract(self):
+		return 'ACC_ABSTRACT' in self.accessFlags
+
+
 	def link(self, classfile):
 		flags = []
 		code = self.accessFlags

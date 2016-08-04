@@ -112,6 +112,15 @@ def classTypeToCode(flags):
 
 
 
+def methodToMethodDescription(method):
+	argtypes, rettype = methodDescriptorToCode(method.descriptor)
+	return  methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + method.name + ' (' + ', '.join(argtypes) + ')'
+
+def fieldToFieldDescription(field):
+	return fieldAccessFlagsToCode(field.accessFlags) + ' ' + typeToCode(field.descriptor) + ' ' + field.name + ';'
+
+
+
 # converts the list of class access flags to a java code string describing the access
 def classAccessFlagsToCode(flags):
 	newflags = []

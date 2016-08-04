@@ -33,7 +33,7 @@ class AbstractClassRebuilder(object):
 			# filters method referencing assembly
 			'filter_method_references' : opts.get('filter_method_references', False),
 
-			# shows jump destinations and sources using obvious symbols
+			# shows jump 
 			'mark_jumps' : opts.get('mark_jumps', False),
 
 			'filter_method_name' : opts.get('filter_method_name', None),
@@ -51,16 +51,9 @@ class AbstractClassRebuilder(object):
 			if 'ACC_ABSTRACT' not in self.file.access_flags:
 				text += 'abstract '
 
-		text += classAccessFlagsToCode(self.file.access_flags) + ' '+ classTypeToCode(self.file.access_flags) +\
-			' ' + classNameToSimpleNameCode(self.file.this_class)
+		text += classAccessFlagsToCode(self.file.access_flags) + ' class ' + classNameToSimpleNameCode(self.file.this_class)
 		if classNameToCode(self.file.super_class) != 'java.lang.Object':
 			text += ' extends ' + classNameToCode(self.file.super_class)
-		if len(self.file.interfaces) > 0:
-			if classTypeToCode(self.file.access_flags) == 'class':
-				text += ' implements '
-			else:
-				text += ' extends '
-			text += ', '.join(classNameToCode(interface) for interface in self.file.interfaces)
 		text += ' {\n'
 
 
@@ -99,7 +92,7 @@ class AbstractClassRebuilder(object):
 		if self.opts['render_abstract']:
 			if 'ACC_STATIC' in method.accessFlags or methodname == '<clinit>' or methodname == '<init>':
 				text += '// '
-			elif not method.isAbstract():
+			elif 'ACC_ABSTRACT' not in method.accessFlags:
 				text += 'abstract '
 
 
@@ -113,11 +106,10 @@ class AbstractClassRebuilder(object):
 			text += methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + methodname +\
 					' (' + ', '.join([ argtypes[i]+' arg'+str(i) for i in range(len(argtypes)) ]) + ')'
 
-		if not method.isAbstract():
-			if 'exceptions_thrown' in method.codeStructure:
-				text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.codeStructure['exceptions_thrown'])
+		if 'exceptions_thrown' in method.codeStructure:
+			text += ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.codeStructure['exceptions_thrown'])
 
-		if self.opts['render_abstract'] or self.opts['list_class'] or method.isAbstract():
+		if self.opts['render_abstract'] or self.opts['list_class']:
 			text += ';'
 		else:
 			text += ' {\n'
