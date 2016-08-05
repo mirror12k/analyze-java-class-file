@@ -844,6 +844,8 @@ class ClassBytecode(object):
 		# calculates where jumps lead to and marks their destinations with helpful symbols about what jump types they are
 		self.markJumpDestinations = kwargs.get('markJumpDestinations', True)
 		self.markJumpSources = kwargs.get('markJumpSources', True)
+
+		self.markExceptionRanges = kwargs.get('markExceptionRanges', True)
 		# an exception table. if given and markJumpDestinations is enabled, it will use this to display exception handling locations
 		self.exceptionTable = kwargs.get('exceptionTable', None)
 		# classfile for resolving constants if resolveConstants is enabled
@@ -1054,29 +1056,30 @@ class ClassBytecode(object):
 				if self.assembly[offset] in assemblySearchList:
 					if self.assembly[offset] == 'tableswitch':
 						for i in range(len(self.assembly[offset+2]) - 1):
-							dest = self.assembly[offset+2][i]
-							if dest + bytecodeOffset not in jumpDestinations:
-								jumpDestinations[dest + bytecodeOffset] = []
-							jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[' + str(self.assembly[offset+1] + i) + ']')
-						dest = self.assembly[offset+2][-1]
-						if dest + bytecodeOffset not in jumpDestinations:
-							jumpDestinations[dest + bytecodeOffset] = []
-						jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[default]')
+							dest = self.assembly[offset+2][i] + bytecodeOffset
+							if dest not in jumpDestinations:
+								jumpDestinations[dest] = []
+							jumpDestinations[dest].append(str(bytecodeOffset) + '[' + str(self.assembly[offset+1] + i) + ']')
+						dest = self.assembly[offset+2][-1] + bytecodeOffset
+						if dest not in jumpDestinations:
+							jumpDestinations[dest] = []
+						jumpDestinations[dest].append(str(bytecodeOffset) + '[default]')
 					elif self.assembly[offset] == 'lookupswitch':
 						jumpOffsets = self.assembly[offset+1]
 						for key in sorted([ key for key in jumpOffsets.keys() if type(key) == int ]):
-							dest = self.assembly[offset+1][key]
-							if dest + bytecodeOffset not in jumpDestinations:
-								jumpDestinations[dest + bytecodeOffset] = []
-							jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[' + str(key) + ']')
-						dest = self.assembly[offset+1]['default']
-						if dest + bytecodeOffset not in jumpDestinations:
-							jumpDestinations[dest + bytecodeOffset] = []
-						jumpDestinations[dest + bytecodeOffset].append(str(bytecodeOffset) + '[default]')
+							dest = self.assembly[offset+1][key] + bytecodeOffset
+							if dest not in jumpDestinations:
+								jumpDestinations[dest] = []
+							jumpDestinations[dest].append(str(bytecodeOffset) + '[' + str(key) + ']')
+						dest = self.assembly[offset+1]['default'] + bytecodeOffset
+						if dest not in jumpDestinations:
+							jumpDestinations[dest] = []
+						jumpDestinations[dest].append(str(bytecodeOffset) + '[default]')
 					else:
-						if self.assembly[offset+1] + bytecodeOffset not in jumpDestinations:
-							jumpDestinations[self.assembly[offset+1] + bytecodeOffset] = []
-						jumpDestinations[self.assembly[offset+1] + bytecodeOffset].append(bytecodeOffset)
+						dest = self.assembly[offset+1] + bytecodeOffset
+						if dest not in jumpDestinations:
+							jumpDestinations[dest] = []
+						jumpDestinations[dest].append(bytecodeOffset)
 
 				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
@@ -1096,6 +1099,16 @@ class ClassBytecode(object):
 
 		return jumpDestinations
 
+	def calculateExceptionRanges(self):
+		ranges = []
+
+		for entry in self.exceptionTable:
+			entry_comment = 'try [{},{}] catch "{}" at {}'.format(entry['start_pc'], entry['end_pc'],
+						classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*', entry['handler_pc'])
+			ranges.append([entry['start_pc'], entry['end_pc'], entry_comment, '* '])
+
+		return ranges
+
 
 	def stringAssembly(self, assemblyFilterList=None):
 		code = ''
@@ -1108,6 +1121,10 @@ class ClassBytecode(object):
 				exceptionJumpDestinations = self.calculateExceptionDestinations()
 			else:
 				exceptionJumpDestinations = {}
+
+		rangesProcessed = []
+		if self.markExceptionRanges and self.exceptionTable is not None:
+			rangesProcessed += self.calculateExceptionRanges()
 
 		offset = 0
 		bytecodeOffset = 0
@@ -1141,6 +1158,15 @@ class ClassBytecode(object):
 				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
 					code += '\t' + str(bytecodeOffset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
 
+				markRange = ''
+
+				for displayedRange in rangesProcessed:
+					if displayedRange[0] == bytecodeOffset:
+						code += '\t# ' + displayedRange[2] + '\n'
+					if displayedRange[0] <= bytecodeOffset and displayedRange[1] >= bytecodeOffset:
+						markRange += displayedRange[3]
+
+
 				if self.assembly[offset] == 'wide':
 					inst = 'wide ' + self.assembly[offset+1]
 					lastInstruction = self.assembly[offset+1]
@@ -1149,7 +1175,7 @@ class ClassBytecode(object):
 					lastInstruction = inst
 
 				if self.labelOffsets and (assemblyFilterList is None or lastInstruction in assemblyFilterList):
-					code += str(bytecodeOffset) + ':\t\t'
+					code += str(bytecodeOffset) + ':\t' + markRange + '\t'
 
 				if assemblyFilterList is None or lastInstruction in assemblyFilterList:
 					code += inst
