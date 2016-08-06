@@ -1132,11 +1132,30 @@ class ClassBytecode(object):
 		ranges = []
 
 		for entry in self.exceptionTable:
-			entry_comment = 'try [{},{}] catch "{}" at {}'.format(entry['start_pc'], entry['end_pc'],
+			entry_comment = 'try [{}:{}] catch "{}" at {}'.format(entry['start_pc'], entry['end_pc'],
 						classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*', entry['handler_pc'])
 			ranges.append([entry['start_pc'], entry['end_pc'], entry_comment, '* '])
 
 		return ranges
+
+	def detectLoopRanges(self):
+		ranges = []
+		jumpSources = self.calculateJumpSources(assemblyAbsoluteJumpListing)
+		jumpDestinations = self.calculateJumpDestinations(assemblyConditionalJumpListing)
+		for sourcepc in jumpSources:
+			if jumpSources[sourcepc][0] < sourcepc:
+				nextOffset = sourcepc + 3
+				if nextOffset in jumpDestinations:
+					possibleLoops = sorted([ jumpSource for jumpSource in jumpDestinations[nextOffset]\
+							if jumpSources[sourcepc][0] <= jumpSource and jumpSource < sourcepc ])
+					# print('checking for loop from {} ({}) : {}'.format(sourcepc, nextOffset, possibleLoops))
+					if len(possibleLoops) > 0:
+						ranges.append([ jumpSources[sourcepc][0], sourcepc,\
+								'conditional loop [{}:{}] (exit at {})'.format(jumpSources[sourcepc][0], sourcepc, possibleLoops[0]), '| ' ])
+		return ranges
+
+
+
 
 
 	def stringAssembly(self, assemblyFilterList=None):
@@ -1160,6 +1179,7 @@ class ClassBytecode(object):
 				exceptionJumpSources = {}
 
 		rangesProcessed = []
+		rangesProcessed += self.detectLoopRanges()
 		if self.markExceptionRanges and self.exceptionTable is not None:
 			rangesProcessed += self.calculateExceptionRanges()
 
@@ -1167,44 +1187,50 @@ class ClassBytecode(object):
 		bytecodeOffset = 0
 		lastBytecodeOffset = bytecodeOffset
 		lastInstruction = None
+
+		activeRangeStack = []
+		markRange = ''
 		while offset < len(self.assembly):
 			if type(self.assembly[offset]) == str:
 
 				if len(code) != 0 and (assemblyFilterList is None or lastInstruction in assemblyFilterList):
 					code += '\n'
 
+				# process outgoing jumps
 				if self.markJumpSources:
 					if lastBytecodeOffset in exceptionJumpSources:
-						code += '\t' + str(lastBytecodeOffset) +' >>** ' + ', '.join( str(pc) for pc in exceptionJumpSources[lastBytecodeOffset] ) + '\n'
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>** ' + ', '.join( str(pc) for pc in exceptionJumpSources[lastBytecodeOffset] ) + '\n'
 					if lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
-						code += '\t' + str(lastBytecodeOffset) +' >>-->>\n\n'
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-->>\n\n'
 					if lastBytecodeOffset in absoluteJumpSources:
-						code += '\t' + str(lastBytecodeOffset) +' >>-- ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n\n'
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-- ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n\n'
 					if lastBytecodeOffset in conditionalJumpSources:
-						code += '\t' + str(lastBytecodeOffset) +' >>?? ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>?? ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
 
+				# process ranges
+				for displayedRange in rangesProcessed:
+					if displayedRange[0] == bytecodeOffset:
+						code += '\t' + markRange + '# ' + displayedRange[2] + '\n'
+						activeRangeStack.append(displayedRange)
 
+				activeRangeStack = [ activeRange for activeRange in activeRangeStack if activeRange[0] <= bytecodeOffset and bytecodeOffset <= activeRange[1] ]
+				markRange = ''.join( activeRange[3] for activeRange in activeRangeStack )
+
+				# process incoming jumps
 				if self.markJumpDestinations and bytecodeOffset in exceptionJumpDestinations:
-					code += '\t' + str(bytecodeOffset) + ' <<** ' + ','.join(\
+					code += '\t' + markRange + str(bytecodeOffset) + ' <<** ' + ','.join(\
 						'[{}:{}] : {}'.format(entry['start_pc'], entry['end_pc'], str(classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*')) \
 							for entry in exceptionJumpDestinations[bytecodeOffset] \
 					) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in tableJumpDestinations:
-					code += '\t' + str(bytecodeOffset) + ' <<## ' + ','.join(str(source) for source in tableJumpDestinations[bytecodeOffset]) + '\n'
+					code += '\t' + markRange + str(bytecodeOffset) + ' <<## ' + ','.join(str(source) for source in tableJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in absoluteJumpDestinations:
-					code += '\t' + str(bytecodeOffset) + ' <<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
+					code += '\t' + markRange + str(bytecodeOffset) + ' <<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
 				if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
-					code += '\t' + str(bytecodeOffset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
-
-				markRange = ''
-
-				for displayedRange in rangesProcessed:
-					if displayedRange[0] == bytecodeOffset:
-						code += '\t# ' + displayedRange[2] + '\n'
-					if displayedRange[0] <= bytecodeOffset and displayedRange[1] >= bytecodeOffset:
-						markRange += displayedRange[3]
+					code += '\t' + markRange + str(bytecodeOffset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
 
 
+				# display the instruction
 				if self.assembly[offset] == 'wide':
 					inst = 'wide ' + self.assembly[offset+1]
 					lastInstruction = self.assembly[offset+1]
@@ -1218,6 +1244,7 @@ class ClassBytecode(object):
 				if assemblyFilterList is None or lastInstruction in assemblyFilterList:
 					code += inst
 
+				# increment offsets
 				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
 				if self.assembly[offset] == 'wide':
