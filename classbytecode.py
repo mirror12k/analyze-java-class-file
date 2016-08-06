@@ -737,11 +737,6 @@ assemblyConditionalJumpListing = [
 ]
 
 assemblyAbsoluteLeaveListing = [
-	'goto',
-	'jsr',
-	'goto_w',
-	'jsr_w',
-
 	'ireturn',
 	'lreturn',
 	'freturn',
@@ -886,6 +881,8 @@ class ClassBytecode(object):
 				elif instruction == 'invokeinterface':
 					self.assembly.append(instruction)
 					self.assembly.append(struct.unpack('>H', bytecode[offset+1:offset+3])[0])
+					# this silly byte here serves no purpose and can be deducted from the method constant given
+					# but it's too complex to recalculate it during packing that we just leave it
 					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
 					offset += 5
 				elif instruction == 'tableswitch':
@@ -1081,13 +1078,35 @@ class ClassBytecode(object):
 							jumpDestinations[dest] = []
 						jumpDestinations[dest].append(bytecodeOffset)
 
-				lastBytecodeOffset = bytecodeOffset
 				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
 				if self.assembly[offset] == 'wide':
 					offset += 1
 			offset += 1
 
 		return jumpDestinations
+
+	def calculateJumpSources(self, assemblySearchList=assemblyJumpListing):
+		jumpSources = {}
+
+		offset = 0
+		bytecodeOffset = 0
+		while offset < len(self.assembly):
+			if type(self.assembly[offset]) == str:
+				if self.assembly[offset] in assemblySearchList:
+					if self.assembly[offset] == 'tableswitch':
+						jumpSources[bytecodeOffset] = [ bytecodeOffset + dest for dest in self.assembly[offset+2] ]
+					elif self.assembly[offset] == 'lookupswitch':
+						jumpSources[bytecodeOffset] = [ bytecodeOffset + self.assembly[offset+1][key] for key in self.assembly[offset+1] ]
+					else:
+						jumpSources[bytecodeOffset] = [bytecodeOffset + self.assembly[offset+1]]
+
+
+				bytecodeOffset += self.assemblyToSize(offset, bytecodeOffset)
+				if self.assembly[offset] == 'wide':
+					offset += 1
+			offset += 1
+
+		return jumpSources
 
 	def calculateExceptionDestinations(self):
 		jumpDestinations = {}
@@ -1098,6 +1117,16 @@ class ClassBytecode(object):
 			jumpDestinations[entry['handler_pc']].append(entry)
 
 		return jumpDestinations
+
+	def calculateExceptionSources(self):
+		jumpSources = {}
+
+		for entry in self.exceptionTable:
+			if entry['end_pc'] not in jumpSources:
+				jumpSources[entry['end_pc']] = []
+			jumpSources[entry['end_pc']].append(entry['handler_pc'])
+
+		return jumpSources
 
 	def calculateExceptionRanges(self):
 		ranges = []
@@ -1122,6 +1151,14 @@ class ClassBytecode(object):
 			else:
 				exceptionJumpDestinations = {}
 
+		if self.markJumpSources:
+			conditionalJumpSources = self.calculateJumpSources(assemblyConditionalJumpListing)
+			absoluteJumpSources = self.calculateJumpSources(assemblyAbsoluteJumpListing)
+			if self.exceptionTable is not None:
+				exceptionJumpSources = self.calculateExceptionSources()
+			else:
+				exceptionJumpSources = {}
+
 		rangesProcessed = []
 		if self.markExceptionRanges and self.exceptionTable is not None:
 			rangesProcessed += self.calculateExceptionRanges()
@@ -1136,14 +1173,15 @@ class ClassBytecode(object):
 				if len(code) != 0 and (assemblyFilterList is None or lastInstruction in assemblyFilterList):
 					code += '\n'
 
-				if self.markJumpSources and lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
-					if lastInstruction in assemblyJumpListing:
-						code += '\t' + str(lastBytecodeOffset) +' >>-- ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
-					else:
-						code += '\t' + str(lastBytecodeOffset) +' >>-->>\n'
-					code += '\n'
-				if self.markJumpSources and lastInstruction is not None and lastInstruction in assemblyConditionalJumpListing:
-					code += '\t' + str(lastBytecodeOffset) +' >>?? ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
+				if self.markJumpSources:
+					if lastBytecodeOffset in exceptionJumpSources:
+						code += '\t' + str(lastBytecodeOffset) +' >>** ' + ', '.join( str(pc) for pc in exceptionJumpSources[lastBytecodeOffset] ) + '\n'
+					if lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
+						code += '\t' + str(lastBytecodeOffset) +' >>-->>\n\n'
+					if lastBytecodeOffset in absoluteJumpSources:
+						code += '\t' + str(lastBytecodeOffset) +' >>-- ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n\n'
+					if lastBytecodeOffset in conditionalJumpSources:
+						code += '\t' + str(lastBytecodeOffset) +' >>?? ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
 
 
 				if self.markJumpDestinations and bytecodeOffset in exceptionJumpDestinations:
