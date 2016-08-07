@@ -7,6 +7,7 @@ import sys
 from java_code_tools import *
 import classfile
 import classbytecode
+import classloader
 
 
 
@@ -244,11 +245,18 @@ def main(*args):
 			elif arg == '--filter_empty' or arg == '-E':
 				# skips classes which haven't found any items requested in the search
 				opts['filter_empty'] = True
+			elif arg == '--class_loader' or arg == '-cl':
+				opts['class_loader'] = classloader.ClassFileLoader(args[i+1])
+				i += 1
 			else:
-				cf = classfile.openFile(arg)
-				cf.linkClassFile()
-				cf.inlineClassFile()
-				cf.linkBytecode()
+				if 'class_loader' in opts:
+					cf = opts['class_loader'].loadClassByName(arg)
+					cf.linkBytecode()
+				else:
+					cf = classfile.openFile(arg)
+					cf.linkClassFile()
+					cf.inlineClassFile()
+					cf.linkBytecode()
 
 				chart = JavaClassChart(cf, **opts)
 				if opts['filter_empty'] == False or chart.hasSomething():

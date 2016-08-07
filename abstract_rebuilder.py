@@ -7,6 +7,7 @@ import sys
 from java_code_tools import *
 import classfile
 import classbytecode
+import classloader
 
 
 
@@ -188,10 +189,16 @@ def main(*args):
 			elif arg == '--filter_method_descriptor' or arg == '-md':
 				opts['filter_method_descriptor'] = args[i+1]
 				i += 1
+			elif arg == '--class_loader' or arg == '-cl':
+				opts['class_loader'] = classloader.ClassFileLoader(args[i+1])
+				i += 1
 			else:
-				cf = classfile.openFile(arg)
-				cf.linkClassFile()
-				cf.inlineClassFile()
+				if 'class_loader' in opts:
+					cf = opts['class_loader'].loadClassByName(arg)
+				else:
+					cf = classfile.openFile(arg)
+					cf.linkClassFile()
+					cf.inlineClassFile()
 				rebuilder = AbstractClassRebuilder(cf, **opts)
 				print (rebuilder.stringClass())
 			i += 1
