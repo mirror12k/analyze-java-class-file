@@ -1198,14 +1198,21 @@ class ClassBytecode(object):
 
 				# process outgoing jumps
 				if self.markJumpSources:
+					if lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-->>\n' + '\t' + markRange + '\n'
+					if lastBytecodeOffset in absoluteJumpSources:
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-- ' + ', '.join( str(pc) for pc in absoluteJumpSources[lastBytecodeOffset] ) +\
+								'\n' + '\t' + markRange + '\n'
+					if lastBytecodeOffset in conditionalJumpSources:
+						code += '\t' + markRange + str(lastBytecodeOffset) +' >>?? ' + ', '.join( str(pc) for pc in conditionalJumpSources[lastBytecodeOffset] ) + '\n'
 					if lastBytecodeOffset in exceptionJumpSources:
 						code += '\t' + markRange + str(lastBytecodeOffset) +' >>** ' + ', '.join( str(pc) for pc in exceptionJumpSources[lastBytecodeOffset] ) + '\n'
-					if lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
-						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-->>\n\n'
-					if lastBytecodeOffset in absoluteJumpSources:
-						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-- ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n\n'
-					if lastBytecodeOffset in conditionalJumpSources:
-						code += '\t' + markRange + str(lastBytecodeOffset) +' >>?? ' + str(self.assembly[offset-1] + lastBytecodeOffset) + '\n'
+
+				oldRanges = activeRangeStack
+				activeRangeStack = [ activeRange for activeRange in activeRangeStack if activeRange[0] <= bytecodeOffset and bytecodeOffset <= activeRange[1] ]
+				markRange = ''.join( activeRange[3] for activeRange in activeRangeStack )
+				if len(activeRangeStack) != len(oldRanges):
+					code += '\t' + markRange + '\n'
 
 				# process ranges
 				for displayedRange in rangesProcessed:
@@ -1213,7 +1220,6 @@ class ClassBytecode(object):
 						code += '\t' + markRange + '# ' + displayedRange[2] + '\n'
 						activeRangeStack.append(displayedRange)
 
-				activeRangeStack = [ activeRange for activeRange in activeRangeStack if activeRange[0] <= bytecodeOffset and bytecodeOffset <= activeRange[1] ]
 				markRange = ''.join( activeRange[3] for activeRange in activeRangeStack )
 
 				# process incoming jumps

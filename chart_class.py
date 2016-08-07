@@ -162,12 +162,12 @@ class JavaClassChart(object):
 			for methodpointer in self.constantReferencesByMethod:
 				s += '\n\t\t' + methodpointer + ':\n'
 				s += '\n'.join( '\t\t\t' + str(const) for const in self.constantReferencesByMethod[methodpointer] )
-		if len(self.stringReferences) > 0:
-			s += '\n\tstrings:\n'
-			s += '\n'.join( '\t\t' + string for string in self.stringReferences )
 		if len(self.classReferences) > 0:
 			s += '\n\tclasses referenced:\n'
 			s += '\n'.join( '\t\t' + classNameToCode(classname) for classname in self.classReferences )
+		if len(self.stringReferences) > 0:
+			s += '\n\tstrings:\n'
+			s += '\n'.join( '\t\t' + string for string in self.stringReferences )
 
 		if len(self.searchMethodList) > 0:
 			s += '\n\tmatching method references:\n'
@@ -191,24 +191,48 @@ def main(*args):
 		i = 0
 		while i < len(args):
 			arg = args[i]
-			if arg == '--strings' or arg == '-s':
-				# displays string references in the class (not utf8 constants, specifically string constants)
-				opts['strings'] = True
-			elif arg == '--constants_by_method' or arg == '-cm':
-				# displays constants loaded by various methods
-				opts['constants_by_method'] = True
-			elif arg == '--classes' or arg == '-c':
-				# displays all classes referenced in the constants
+			if arg == '--help' or arg == '-h':
+				# displays help
+				print('''
+				lists general collected information about any given class files
+				options as to what to search:
+					-a --all : enables the following: --methods, --fields, --classes, and --strings
+					-m --methods : displays all methods declared in the class
+					-f --fields : displays all fields declared in the class
+					-c --classes : displays all classes referenced in constants
+					-s --strings : displays string references in the class (not utf8 constants, specifically string constants)
+					-ci --classes_internal : displays all internal classes declared inside this class (uses constants, doesn't search files)
+					-cm --constants_by_method : displays constants loaded by various methods
+					-sm --search_method <[method class .] method name> : displays references to a specic method
+					-new --search_new <class name> : displays references to instantiations of a specific class (looks for references to their "<init>" methods)
+					-E --filter_empty : skips classes which haven't found any items requested in the search (useful with search options)
+				''')
+			elif arg == '--all' or arg == '-a':
+				# enables the following: --methods, --fields, --classes, and --strings
+				opts['methods'] = True
+				opts['fields'] = True
 				opts['classes'] = True
-			elif arg == '--classes_internal' or arg == '-ci':
-				# displays all internal classes declared inside this class (uses constants, doesn't search files)
-				opts['classes_internal'] = True
+				opts['strings'] = True
+				
 			elif arg == '--methods' or arg == '-m':
 				# displays all methods declared in the class
 				opts['methods'] = True
 			elif arg == '--fields' or arg == '-f':
 				# displays all fields declared in the class
 				opts['fields'] = True
+			elif arg == '--classes' or arg == '-c':
+				# displays all classes referenced in the constants
+				opts['classes'] = True
+			elif arg == '--strings' or arg == '-s':
+				# displays string references in the class (not utf8 constants, specifically string constants)
+				opts['strings'] = True
+			elif arg == '--classes_internal' or arg == '-ci':
+				# displays all internal classes declared inside this class (uses constants, doesn't search files)
+				opts['classes_internal'] = True
+			elif arg == '--constants_by_method' or arg == '-cm':
+				# displays constants loaded by various methods
+				opts['constants_by_method'] = True
+
 			elif arg == '--search_method' or arg == '-sm':
 				# displays references to a specic method
 				opts['search_method'] = args[i+1]

@@ -114,8 +114,10 @@ def classTypeToCode(flags):
 
 def methodToMethodDescription(method):
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
-	# TODO: should i add the throws clause in there?
-	return  methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + method.name + ' (' + ', '.join(argtypes) + ')'
+	throwClause = ''
+	if method.exceptionsThrown is not None:
+		throwClause = ' throws ' + ', '.join( classNameToCode(exceptionClass) for exceptionClass in method.exceptionsThrown )
+	return  methodAccessFlagsToCode(method.accessFlags) + ' ' + rettype + ' ' + method.name + ' (' + ', '.join(argtypes) + ')' + throwClause
 
 def fieldToFieldDescription(field):
 	return fieldAccessFlagsToCode(field.accessFlags) + ' ' + typeToCode(field.descriptor) + ' ' + field.name + ';'
