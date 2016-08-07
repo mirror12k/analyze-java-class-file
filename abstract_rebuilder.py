@@ -12,10 +12,8 @@ import classbytecode
 
 
 class AbstractClassRebuilder(object):
-	def __init__(self, filepath, **opts):
-		self.file = classfile.openFile(filepath)
-		self.file.linkClassFile()
-		self.file.inlineClassFile()
+	def __init__(self, file, **opts):
+		self.file = file
 		self.opts = {
 			# simply lists functions and fields
 			'list_class' : opts.get('list_class', False),
@@ -191,7 +189,10 @@ def main(*args):
 				opts['filter_method_descriptor'] = args[i+1]
 				i += 1
 			else:
-				rebuilder = AbstractClassRebuilder(arg, **opts)
+				cf = classfile.openFile(arg)
+				cf.linkClassFile()
+				cf.inlineClassFile()
+				rebuilder = AbstractClassRebuilder(cf, **opts)
 				print (rebuilder.stringClass())
 			i += 1
 

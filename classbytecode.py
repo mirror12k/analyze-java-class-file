@@ -743,7 +743,6 @@ assemblyAbsoluteLeaveListing = [
 	'dreturn',
 	'areturn',
 	'return',
-	'return',
 	'athrow',
 ]
 
@@ -832,8 +831,8 @@ class ClassBytecode(object):
 
 		# labels bytecode offsets in each instruction
 		self.labelOffsets = kwargs.get('labelOffsets', True)
-		# adds the bytecode offset to each jump instruction's argument to get the absolute destination
-		self.globalizeJumps = kwargs.get('globalizeJumps', True)
+		# # adds the bytecode offset to each jump instruction's argument to get the absolute destination
+		# self.globalizeJumps = kwargs.get('globalizeJumps', True)
 		# adds comments on the the constants referenced in assembly code by retrieving them from the given classfile
 		self.resolveConstants = kwargs.get('resolveConstants', False)
 		# calculates where jumps lead to and marks their destinations with helpful symbols about what jump types they are
@@ -1155,7 +1154,21 @@ class ClassBytecode(object):
 		return ranges
 
 
+	def isMethodFieldGetter(self):
+		if len(self.assembly) == 4:
+			if self.assembly[0] == 'aload_0' and self.assembly[1] == 'getfield':
+				if self.assembly[3] == 'ireturn' or self.assembly[3] == 'lreturn' or self.assembly[3] == 'freturn' or self.assembly[3] == 'dreturn' or\
+						self.assembly[3] == 'areturn':
+					return True
+		return False
 
+	def isMethodFieldSetter(self):
+		if len(self.assembly) == 5:
+			if self.assembly[0] == 'aload_0' and self.assembly[2] == 'putfield' and self.assembly[4] == 'return':
+				if self.assembly[1] == 'iload_1' or self.assembly[1] == 'lload_1' or self.assembly[1] == 'fload_1' or self.assembly[1] == 'dload_1' or\
+						self.assembly[1] == 'aload_1':
+					return True
+		return False
 
 
 	def stringAssembly(self, assemblyFilterList=None):
@@ -1182,6 +1195,12 @@ class ClassBytecode(object):
 		rangesProcessed += self.detectLoopRanges()
 		if self.markExceptionRanges and self.exceptionTable is not None:
 			rangesProcessed += self.calculateExceptionRanges()
+
+
+		if self.isMethodFieldGetter():
+			code += '// field getter method\n'
+		if self.isMethodFieldSetter():
+			code += '// field setter method\n'
 
 		offset = 0
 		bytecodeOffset = 0
@@ -1257,7 +1276,7 @@ class ClassBytecode(object):
 					offset += 1
 			else:
 				if assemblyFilterList is None or lastInstruction in assemblyFilterList:
-					if self.globalizeJumps and lastInstruction in assemblyJumpListing:
+					if lastInstruction in assemblyJumpListing:
 						code += ' ' + str(self.assembly[offset] + lastBytecodeOffset)
 					elif self.resolveConstants and type(self.assembly[offset-1]) == str and lastInstruction in assemblyConstantReferenceListing:
 						code += ' #' + str(self.assembly[offset]) + '\t\t// ' +\
@@ -1267,26 +1286,14 @@ class ClassBytecode(object):
 					elif type(self.assembly[offset-2]) == str and lastInstruction == 'tableswitch':
 						code += ' {\n'
 						for i in range(len(self.assembly[offset]) - 1):
-							if self.globalizeJumps:
-								code += '\t' + str(self.assembly[offset-1] + i) + ': ' + str(self.assembly[offset][i] + lastBytecodeOffset) + '\n'
-							else:
-								code += '\t' + str(self.assembly[offset-1] + i) + ': ' + str(self.assembly[offset][i]) + '\n'
-						if self.globalizeJumps:
-							code += '\tdefault: ' + str(self.assembly[offset][-1] + lastBytecodeOffset) + '\n'
-						else:
-							code += '\tdefault: ' + str(self.assembly[offset][-1]) + '\n'
+							code += '\t' + str(self.assembly[offset-1] + i) + ': ' + str(self.assembly[offset][i] + lastBytecodeOffset) + '\n'
+						code += '\tdefault: ' + str(self.assembly[offset][-1] + lastBytecodeOffset) + '\n'
 						code += '}'
 					elif type(self.assembly[offset-1]) == str and lastInstruction == 'lookupswitch':
 						code += ' {\n'
 						for key in sorted([ key for key in self.assembly[offset].keys() if type(key) == int ]):
-							if self.globalizeJumps:
-								code += '\t' + str(key) + ': ' + str(self.assembly[offset][key] + lastBytecodeOffset) + '\n'
-							else:
-								code += '\t' + str(key) + ': ' + str(self.assembly[offset][key]) + '\n'
-						if self.globalizeJumps:
-							code += '\tdefault: ' + str(self.assembly[offset]['default'] + lastBytecodeOffset) + '\n'
-						else:
-							code += '\tdefault: ' + str(self.assembly[offset]['default']) + '\n'
+							code += '\t' + str(key) + ': ' + str(self.assembly[offset][key] + lastBytecodeOffset) + '\n'
+						code += '\tdefault: ' + str(self.assembly[offset]['default'] + lastBytecodeOffset) + '\n'
 						code += '}'
 					else:
 						if isinstance(self.assembly[offset], classfile.ClassFileConstant):
