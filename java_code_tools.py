@@ -227,6 +227,28 @@ letterTypeToCode = {
 	'a' : 'reference',
 }
 
+def typeToBytecodeType(typestr):
+	if typestr == 'void':
+		return ''
+	elif typestr == 'bool':
+		return 'i'
+	elif typestr == 'char':
+		return 'i'
+	elif typestr == 'byte':
+		return 'i'
+	elif typestr == 'short':
+		return 'i'
+	elif typestr == 'int':
+		return 'i'
+	elif typestr == 'long':
+		return 'l'
+	elif typestr == 'float':
+		return 'f'
+	elif typestr == 'double':
+		return 'd'
+	else:
+		return 'a'
+
 	
 # converts the packed type string to a java code type
 def typeToCode(typestr):

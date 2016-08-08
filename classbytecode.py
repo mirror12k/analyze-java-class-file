@@ -924,6 +924,7 @@ class ClassBytecode(object):
 					self.assembly.append(struct.unpack('>B', bytecode[offset+3:offset+4])[0])
 					offset += 4
 				elif instruction == 'wide':
+					self.assembly.append('wide')
 					c2 = ord(bytecode[offset + 1])
 					if c2 == 0x84: # iinc
 						self.assembly.append('iinc')
@@ -1239,21 +1240,17 @@ class ClassBytecode(object):
 					preLineInfo[offset] = []
 				preLineInfo[offset].append( str(offset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[offset]) )
 
-			# if bytecodeOffset in exceptionJumpDestinations:
-			# if bytecodeOffset in tableJumpDestinations:
-			# 	 + '\n'
-			# if bytecodeOffset in absoluteJumpDestinations:
-			# 	str(bytecodeOffset) + ' <<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
-			# if bytecodeOffset in conditionalJumpDestinations:
-			# 	str(bytecodeOffset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
-
 
 
 
 		if self.isMethodFieldGetter():
-			code += '// field getter method\n'
+			if 0 not in preLineInfo:
+				preLineInfo[0] = []
+			preLineInfo[0].append('// field getter method')
 		if self.isMethodFieldSetter():
-			code += '// field setter method\n'
+			if 0 not in preLineInfo:
+				preLineInfo[0] = []
+			preLineInfo[0].append('// field setter method')
 
 		offset = 0
 		bytecodeOffset = 0
@@ -1272,26 +1269,21 @@ class ClassBytecode(object):
 				if self.markJumpSources:
 					if lastInstruction is not None and lastInstruction in assemblyAbsoluteLeaveListing:
 						code += '\t' + markRange + str(lastBytecodeOffset) +' >>-->>\n' + '\t' + markRange + '\n'
-					# if lastBytecodeOffset in absoluteJumpSources:
-					# 	code += '\t' + markRange + str(lastBytecodeOffset) +' >>-- ' + ', '.join( str(pc) for pc in absoluteJumpSources[lastBytecodeOffset] ) +\
-					# 			'\n' + '\t' + markRange + '\n'
-					# if lastBytecodeOffset in conditionalJumpSources:
-					# 	code += '\t' + markRange + str(lastBytecodeOffset) +' >>?? ' + ', '.join( str(pc) for pc in conditionalJumpSources[lastBytecodeOffset] ) + '\n'
-					# if lastBytecodeOffset in exceptionJumpSources:
-					# 	code += '\t' + markRange + str(lastBytecodeOffset) +' >>** ' + ', '.join( str(pc) for pc in exceptionJumpSources[lastBytecodeOffset] ) + '\n'
 
+				#display post-line info
 				if lastBytecodeOffset in postLineInfo:
 					for line in postLineInfo[lastBytecodeOffset]:
 						code += '\t' + markRange + line + '\n'
 
 
+				# purge ranges
 				oldRanges = activeRangeStack
 				activeRangeStack = [ activeRange for activeRange in activeRangeStack if activeRange[0] <= bytecodeOffset and bytecodeOffset <= activeRange[1] ]
 				markRange = ''.join( activeRange[3] for activeRange in activeRangeStack )
 				if len(activeRangeStack) != len(oldRanges):
 					code += '\t' + markRange + '\n'
 
-				# process ranges
+				# process additional ranges
 				for displayedRange in rangesProcessed:
 					if displayedRange[0] == bytecodeOffset:
 						code += '\t' + markRange + '# ' + displayedRange[2] + '\n'
@@ -1299,19 +1291,7 @@ class ClassBytecode(object):
 
 				markRange = ''.join( activeRange[3] for activeRange in activeRangeStack )
 
-				# # process incoming jumps
-				# if self.markJumpDestinations and bytecodeOffset in exceptionJumpDestinations:
-				# 	code += '\t' + markRange + str(bytecodeOffset) + ' <<** ' + ','.join(\
-				# 		'[{}:{}] : {}'.format(entry['start_pc'], entry['end_pc'], str(classNameToCode(entry['catch_type']) if entry['catch_type'] is not None else '*')) \
-				# 			for entry in exceptionJumpDestinations[bytecodeOffset] \
-				# 	) + '\n'
-				# if self.markJumpDestinations and bytecodeOffset in tableJumpDestinations:
-				# 	code += '\t' + markRange + str(bytecodeOffset) + ' <<## ' + ','.join(str(source) for source in tableJumpDestinations[bytecodeOffset]) + '\n'
-				# if self.markJumpDestinations and bytecodeOffset in absoluteJumpDestinations:
-				# 	code += '\t' + markRange + str(bytecodeOffset) + ' <<-- ' + ','.join(str(source) for source in absoluteJumpDestinations[bytecodeOffset]) + '\n'
-				# if self.markJumpDestinations and bytecodeOffset in conditionalJumpDestinations:
-				# 	code += '\t' + markRange + str(bytecodeOffset) + ' <<?? ' + ','.join(str(source) for source in conditionalJumpDestinations[bytecodeOffset]) + '\n'
-
+				#display pre-line info
 				if bytecodeOffset in preLineInfo:
 					for line in preLineInfo[bytecodeOffset]:
 						code += '\t' + markRange + line + '\n'

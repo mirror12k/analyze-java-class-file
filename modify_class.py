@@ -29,23 +29,41 @@ def printprompt(*args):
 def dropConstants(file):
 	file.constants = []
 
-# accepts two [inlined] classfiles and a method and safely appends the method to the recipient class
-def transplantMethod(method, donorClass, recipientClass):
+def hookMethodTrace(file, method):
+	methodname = method.name
+	method.name = methodname + '__hooked'
 
-	# decompile the method bytecode and link it to 
-	bc = classbytecode.ClassBytecode()
-	bc.decompile(method.codeStructure['code'])
-	bc.linkAssembly(donorClass)
+	argtypes, rettype = methodDescriptorToCode(method.descriptor)
+	code = ['aload_0'] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] +\
+			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor), typeToBytecodeType(rettype) + 'return']
+	
+	codeStructure = {}
+	codeStructure['code'] = code
+	codeStructure['max_stack'] = 1 + len(argtypes)
+	codeStructure['max_locals'] = 1 + len(argtypes)
+	codeStructure['exception_table'] = []
+	codeStructure['attributes'] = []
 
-	# uninline the assembly to ensure that the constants are present in the new
-	bc.uninlineAssembly(recipientClass)
-	# relink and recompile the bytecode to the method
-	bc.unlinkAssembly(recipientClass)
-	bc.compile()
-	method.codeStructure['code'] = bc.bytecode
+	attributes = []
+	if method.exceptionsThrown is not None:
+		attr = classfile.ClassFileAttribute(-1, list(method.exceptionsThrown))
+		attr.name = 'Exceptions'
+		attr.inlined = True
+		attributes.append(attr)
+	codeAttr = classfile.ClassFileAttribute(-1, None)
+	codeAttr.name = 'Code'
+	attributes.append(codeAttr)
 
-	# append it to the recipient
-	recipientClass.methods.append(method)
+	newmethod = classfile.ClassFileMethod(list(method.accessFlags), -1, -1, attributes)
+	newmethod.codeStructure = codeStructure
+
+	newmethod.name = methodname
+	newmethod.descriptor = method.descriptor
+
+	file.methods.append(newmethod)
+
+
+
 
 
 
@@ -96,7 +114,7 @@ def main(command=None, *args):
 
 		printaction('renaming methods')
 		for method in renamedmethods:
-			if 'ACC_ABSTRACT' not in method.accessFlags:
+			if not method.isAbstract():
 				printaction ("renaming method: " + method.name + " " + method.descriptor)
 				method.name = newmethodname
 
@@ -200,39 +218,45 @@ def main(command=None, *args):
 		recipientClass.unlinkClassFile()
 		recipientClass.toFile()
 
+	elif command == 'trace_method':
+		if len(args) < 2:
+			raise Exception('usage: trace_method <class filepath> <method name> [method descriptor]')
+		elif len(args) == 2:
+			classFilepath, methodname = args
+			methoddescriptor = None
+		else:
+			classFilepath, methodname, methoddescriptor = args
+
+		printinfo('tracing method(s) '+ methodname + ' from ' + classFilepath)
+
+		printaction('unpacking recipient class')
+		recipientClass = classfile.openFile(classFilepath)
+		recipientClass.linkClassFile()
+		recipientClass.inlineClassFile()
+		recipientClass.linkBytecode()
+
+		printinfo('searching for method(s)')
+		hookedMethods = recipientClass.getMethodsByName(methodname, methoddescriptor)
+		if len(hookedMethods) == 0:
+			raise Exception('class has no method(s) matching the arguments!')
+		
+		printinfo('hooking method(s)')
+		for method in hookedMethods:
+			printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
+			hookMethodTrace(recipientClass, method)
+		
+
+		printaction('packing recipient class')
+		recipientClass.unlinkBytecode()
+		recipientClass.uninlineClassFile()
+		recipientClass.unlinkClassFile()
+		recipientClass.toFile()
+
 	else:
 		raise Exception('unknown command: '+command)
 
 
 	printinfo('done!')
-
-	# # if recipientClass.this_class != donorClass.this_class:
-	# # 	print ("incorrect this_class:", stringConstantSimple(recipientClass.this_class), ' vs ',
-	# # 			stringConstantSimple(donorClass.this_class))
-
-	# # if recipientClass.super_class != donorClass.super_class:
-	# # 	print ("incorrect super_class:", stringConstantSimple(recipientClass.super_class), ' vs ',
-	# # 			stringConstantSimple(donorClass.super_class))
-
-	# # for const in donorClass.constants:
-	# # 	if const not in recipientClass.constants:
-	# # 		print("transplanting constant:", const)
-	# # 		recipientClass.constants.append(const)
-
-	# for method in donorClass.methods:
-	# 	if 'ACC_ABSTRACT' not in method.accessFlags and method.nameIndex.string != '<init>':
-	# 		print ("transplanting method", stringConstantSimple(method.nameIndex))
-	# 		transplantMethod(method, donorClass, recipientClass)
-			
-
-
-	# # c = classfile.createConstant('CONSTANT_Utf8', 'this is another injected constant!')
-
-	# # recipientClass.constants.append(c)
-
-	# recipientClass.uninlineClassFile()
-	# recipientClass.unlinkClassFile()
-	# recipientClass.toFile()
 
 
 if __name__ == '__main__':
