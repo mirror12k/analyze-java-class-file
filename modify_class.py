@@ -35,12 +35,55 @@ def hookMethodTrace(file, method):
 
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
 	code = ['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
-				'ldc', classfile.createConstant('CONSTANT_String', 'trace enter ' + methodname +' (' + ', '.join(argtypes) + ')'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'trace -> ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ')'),\
 				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
 			['aload_0'] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] +\
 			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
 			['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
-				'ldc', classfile.createConstant('CONSTANT_String', 'trace exit ' + methodname +' (' + ', '.join(argtypes) + ')'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'trace <- ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ')'),\
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+			[typeToBytecodeType(rettype) + 'return']
+	
+	codeStructure = {}
+	codeStructure['code'] = code
+	if 1 + len(argtypes) < 3:
+		codeStructure['max_stack'] = 3
+	else:
+		codeStructure['max_stack'] = 1 + len(argtypes)
+	codeStructure['max_locals'] = 1 + len(argtypes)
+	codeStructure['exception_table'] = []
+	codeStructure['attributes'] = []
+
+	attributes = []
+	if method.exceptionsThrown is not None:
+		attr = classfile.ClassFileAttribute(-1, list(method.exceptionsThrown))
+		attr.name = 'Exceptions'
+		attr.inlined = True
+		attributes.append(attr)
+	codeAttr = classfile.ClassFileAttribute(-1, None)
+	codeAttr.name = 'Code'
+	attributes.append(codeAttr)
+
+	newmethod = classfile.ClassFileMethod(list(method.accessFlags), -1, -1, attributes)
+	newmethod.codeStructure = codeStructure
+
+	newmethod.name = methodname
+	newmethod.descriptor = method.descriptor
+
+	file.methods.append(newmethod)
+
+def hookStaticMethodTrace(file, method):
+	methodname = method.name
+	method.name = methodname + '__traced'
+
+	argtypes, rettype = methodDescriptorToCode(method.descriptor)
+	code = ['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'trace -> ' + methodname +' (' + ', '.join(argtypes) + ')'),\
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+			[ typeToBytecodeType(argtypes[i]) + 'load_' + str(i) for i in range(len(argtypes)) ] +\
+			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
+			['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'trace <- ' + methodname +' (' + ', '.join(argtypes) + ')'),\
 				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
 			[typeToBytecodeType(rettype) + 'return']
 	
@@ -255,9 +298,15 @@ def main(command=None, *args):
 		
 		printinfo('hooking method(s)')
 		for method in hookedMethods:
-			if (not method.isAbstract()) and (not method.isStatic()) and (not method.isSpecial()):
+			if (not method.isAbstract()) and (not method.isSpecial()):
 				printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
-				hookMethodTrace(recipientClass, method)
+				if method.isStatic():
+					hookStaticMethodTrace(recipientClass, method)
+				else:
+					hookMethodTrace(recipientClass, method)
+			else:
+				printwarning('skipping method [' + method.name + ' ' + method.descriptor + ']')
+
 		
 
 		printaction('packing recipient class')
