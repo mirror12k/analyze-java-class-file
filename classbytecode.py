@@ -959,7 +959,13 @@ class ClassBytecode(object):
 					bytecode += struct.pack('>B', code)
 					index += 1
 				elif bytecode1ToAssembly.get(code) is not None:
-					bytecode += struct.pack('>BB', code, assembly[index + 1])
+					if assembly[index + 1] > 255:
+						if assembly[index] == 'ldc':
+							bytecode += struct.pack('>BH', assemblyToBytecode['ldc_w'], assembly[index + 1])
+						else:
+							bytecode += struct.pack('>BBH', assemblyToBytecode['wide'], code, assembly[index + 1])
+					else:
+						bytecode += struct.pack('>BB', code, assembly[index + 1])
 					index += 2
 				elif bytecode2ToAssembly.get(code) is not None:
 					if assembly[index] == 'iinc':

@@ -31,15 +31,21 @@ def dropConstants(file):
 
 def hookMethodTrace(file, method):
 	methodname = method.name
-	method.name = methodname + '__hooked'
+	method.name = methodname + '__traced'
 
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
-	code = ['aload_0'] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] +\
+	code = ['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'entering hooked method "' + methodname +'"'),\
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+			['aload_0'] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] +\
 			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor), typeToBytecodeType(rettype) + 'return']
 	
 	codeStructure = {}
 	codeStructure['code'] = code
-	codeStructure['max_stack'] = 1 + len(argtypes)
+	if 1 + len(argtypes) < 2:
+		codeStructure['max_stack'] = 2
+	else:
+		codeStructure['max_stack'] = 1 + len(argtypes)
 	codeStructure['max_locals'] = 1 + len(argtypes)
 	codeStructure['exception_table'] = []
 	codeStructure['attributes'] = []
