@@ -35,15 +35,19 @@ def hookMethodTrace(file, method):
 
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
 	code = ['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
-				'ldc', classfile.createConstant('CONSTANT_String', 'entering hooked method "' + methodname +'"'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'trace enter ' + methodname +' (' + ', '.join(argtypes) + ')'),\
 				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
 			['aload_0'] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] +\
-			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor), typeToBytecodeType(rettype) + 'return']
+			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
+			['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+				'ldc', classfile.createConstant('CONSTANT_String', 'trace exit ' + methodname +' (' + ', '.join(argtypes) + ')'),\
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+			[typeToBytecodeType(rettype) + 'return']
 	
 	codeStructure = {}
 	codeStructure['code'] = code
-	if 1 + len(argtypes) < 2:
-		codeStructure['max_stack'] = 2
+	if 1 + len(argtypes) < 3:
+		codeStructure['max_stack'] = 3
 	else:
 		codeStructure['max_stack'] = 1 + len(argtypes)
 	codeStructure['max_locals'] = 1 + len(argtypes)
@@ -242,14 +246,18 @@ def main(command=None, *args):
 		recipientClass.linkBytecode()
 
 		printinfo('searching for method(s)')
-		hookedMethods = recipientClass.getMethodsByName(methodname, methoddescriptor)
+		if methodname != '*':
+			hookedMethods = recipientClass.getMethodsByName(methodname, methoddescriptor)
+		else:
+			hookedMethods = recipientClass.getMethodsByName(None, methoddescriptor)
 		if len(hookedMethods) == 0:
 			raise Exception('class has no method(s) matching the arguments!')
 		
 		printinfo('hooking method(s)')
 		for method in hookedMethods:
-			printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
-			hookMethodTrace(recipientClass, method)
+			if (not method.isAbstract()) and (not method.isStatic()) and (not method.isSpecial()):
+				printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
+				hookMethodTrace(recipientClass, method)
 		
 
 		printaction('packing recipient class')

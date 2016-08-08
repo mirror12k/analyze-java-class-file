@@ -362,6 +362,10 @@ class ClassFileMethod(ClassFileObject):
 
 	def isAbstract(self):
 		return 'ACC_ABSTRACT' in self.accessFlags
+	def isStatic(self):
+		return 'ACC_STATIC' in self.accessFlags
+	def isSpecial(self):
+		return self.name == '<init>' or self.name == '<clinit>'
 
 
 	def link(self, classfile):
@@ -972,15 +976,12 @@ class ClassFile(ClassFileObject):
 		else:
 			return [ field for field in self.fields if field.name == name and field.descriptor == descriptor ]
 
-	def getMethodsByName(self, name, descriptor=None):
+	def getMethodsByName(self, name=None, descriptor=None):
 		'''
 			returns a list of ClassFileMethod objects matching the name (and optionally descriptor)
 			requires the classfile to be inlined
 		'''
-		if descriptor is None:
-			return [ method for method in self.methods if method.name == name ]
-		else:
-			return [ method for method in self.methods if method.name == name and method.descriptor == descriptor ]
+		return [ method for method in self.methods if (name is None or method.name == name) and (descriptor is None or method.descriptor == descriptor) ]
 
 	# takes a class-file format constant index and returns the given constant
 	# the constType option allows safely retrieving a specific type of constant

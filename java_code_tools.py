@@ -230,7 +230,7 @@ letterTypeToCode = {
 def typeToBytecodeType(typestr):
 	if typestr == 'void':
 		return ''
-	elif typestr == 'bool':
+	elif typestr == 'boolean':
 		return 'i'
 	elif typestr == 'char':
 		return 'i'
