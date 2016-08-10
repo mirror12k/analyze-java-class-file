@@ -5,6 +5,7 @@
 import sys
 
 import classfile
+import classloader
 import classbytecode
 from java_code_tools import *
 
@@ -110,7 +111,17 @@ def hookStaticMethodTrace(file, method):
 
 
 
-def main(command=None, *args):
+def main(*args):
+	loader = classloader.ClassFileLoader()
+
+	command = args[0]
+	args = args[1:]
+	while command == '-cl':
+		if command == '-cl':
+			loader.setFilepath(args[0])
+			command = args[1]
+			args = args[2:]
+
 	if command is None:
 		printerror("command required")
 	elif command == 'drop_constants':
@@ -119,9 +130,7 @@ def main(command=None, *args):
 
 		printinfo('dropping constants from class file '+args[0])
 		printaction('unpacking file')
-		file = classfile.openFile(args[0])
-		file.linkClassFile()
-		file.inlineClassFile()
+		file = loader.loadClass(args[0])
 		file.linkBytecode()
 
 		printaction('dropping constants')
@@ -129,9 +138,7 @@ def main(command=None, *args):
 
 		printaction('packing file')
 		file.unlinkBytecode()
-		file.uninlineClassFile()
-		file.unlinkClassFile()
-		file.toFile()
+		loader.storeClass(file)
 
 	elif command == 'rename_method':
 		if len(args) < 3:
@@ -145,9 +152,7 @@ def main(command=None, *args):
 
 		printinfo('renaming method(s) '+ methodname + ' to ' + newmethodname + ' in ' + filepath)
 		printaction('unpacking file')
-		file = classfile.openFile(filepath)
-		file.linkClassFile()
-		file.inlineClassFile()
+		file = loader.loadClass(filepath)
 		file.linkBytecode()
 
 		printinfo('searching for methods')
@@ -163,9 +168,7 @@ def main(command=None, *args):
 
 		printaction('packing file')
 		file.unlinkBytecode()
-		file.uninlineClassFile()
-		file.unlinkClassFile()
-		file.toFile()
+		loader.storeClass(file)
 
 	elif command == 'transplant_method':
 		if len(args) < 3:
@@ -179,15 +182,11 @@ def main(command=None, *args):
 		printinfo('transplanting method(s) '+ methodname + ' from ' + donorFilepath + ' to ' + recipientFilepath)
 
 		printaction('unpacking recipient class')
-		recipientClass = classfile.openFile(recipientFilepath)
-		recipientClass.linkClassFile()
-		recipientClass.inlineClassFile()
+		recipientClass = loader.loadClass(recipientFilepath)
 		recipientClass.linkBytecode()
 
 		printaction('unpacking donor class')
-		donorClass = classfile.openFile(donorFilepath)
-		donorClass.linkClassFile()
-		donorClass.inlineClassFile()
+		donorClass = loader.loadClass(donorFilepath)
 		donorClass.linkBytecode()
 
 		printinfo('checking for saftey')
@@ -208,9 +207,7 @@ def main(command=None, *args):
 
 		printaction('packing recipient class')
 		recipientClass.unlinkBytecode()
-		recipientClass.uninlineClassFile()
-		recipientClass.unlinkClassFile()
-		recipientClass.toFile()
+		loader.storeClass(recipientClass)
 
 	elif command == 'hook_method':
 		if len(args) < 3:
@@ -224,15 +221,11 @@ def main(command=None, *args):
 		printinfo('hooking method(s) '+ methodname + ' from ' + donorFilepath + ' to ' + recipientFilepath)
 
 		printaction('unpacking recipient class')
-		recipientClass = classfile.openFile(recipientFilepath)
-		recipientClass.linkClassFile()
-		recipientClass.inlineClassFile()
+		recipientClass = loader.loadClass(recipientFilepath)
 		recipientClass.linkBytecode()
 
 		printaction('unpacking donor class')
-		donorClass = classfile.openFile(donorFilepath)
-		donorClass.linkClassFile()
-		donorClass.inlineClassFile()
+		donorClass = loader.loadClass(donorFilepath)
 		donorClass.linkBytecode()
 
 		printinfo('searching for method(s)')
@@ -257,25 +250,21 @@ def main(command=None, *args):
 
 		printaction('packing recipient class')
 		recipientClass.unlinkBytecode()
-		recipientClass.uninlineClassFile()
-		recipientClass.unlinkClassFile()
-		recipientClass.toFile()
+		loader.storeClass(recipientClass)
 
 	elif command == 'trace_method':
 		if len(args) < 2:
-			raise Exception('usage: trace_method <class filepath> <method name> [method descriptor]')
+			raise Exception('usage: trace_method <classpath> <method name> [method descriptor]')
 		elif len(args) == 2:
-			classFilepath, methodname = args
+			classpath, methodname = args
 			methoddescriptor = None
 		else:
-			classFilepath, methodname, methoddescriptor = args
+			classpath, methodname, methoddescriptor = args
 
-		printinfo('tracing method(s) '+ methodname + ' from ' + classFilepath)
+		printinfo('tracing method(s) '+ methodname + ' from ' + classpath)
 
 		printaction('unpacking recipient class')
-		recipientClass = classfile.openFile(classFilepath)
-		recipientClass.linkClassFile()
-		recipientClass.inlineClassFile()
+		recipientClass = loader.loadClass(classpath)
 		recipientClass.linkBytecode()
 
 		printinfo('searching for method(s)')
@@ -301,9 +290,7 @@ def main(command=None, *args):
 
 		printaction('packing recipient class')
 		recipientClass.unlinkBytecode()
-		recipientClass.uninlineClassFile()
-		recipientClass.unlinkClassFile()
-		recipientClass.toFile()
+		loader.storeClass(recipientClass)
 
 	else:
 		raise Exception('unknown command: '+command)

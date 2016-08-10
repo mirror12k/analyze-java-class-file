@@ -39,4 +39,9 @@ class ClassFileLoader(object):
 			return self.loadClassByPath(classpath)
 		else:
 			return self.loadClassByName(classpath)
+	def storeClass(self, file):
+		file.uninlineClassFile()
+		file.unlinkClassFile()
+		file.toFile()
+
 
