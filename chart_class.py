@@ -186,6 +186,7 @@ def main(*args):
 	if len(args) == 0:
 		print("argument required")
 	else:
+		loader = classloader.ClassFileLoader()
 		opts = {
 			'filter_empty' : False,
 		}
@@ -246,18 +247,10 @@ def main(*args):
 				# skips classes which haven't found any items requested in the search
 				opts['filter_empty'] = True
 			elif arg == '--class_loader' or arg == '-cl':
-				opts['class_loader'] = classloader.ClassFileLoader(args[i+1])
+				loader.setFilepath(args[i+1])
 				i += 1
 			else:
-				if 'class_loader' in opts:
-					cf = opts['class_loader'].loadClassByName(arg)
-					cf.linkBytecode()
-				else:
-					cf = classfile.openFile(arg)
-					cf.linkClassFile()
-					cf.inlineClassFile()
-					cf.linkBytecode()
-
+				cf = loader.loadClass(arg)
 				chart = JavaClassChart(cf, **opts)
 				if opts['filter_empty'] == False or chart.hasSomething():
 					print (chart)

@@ -69,6 +69,13 @@ def createConstant(consttype, *args):
 	return const
 
 
+def createAttribute(name, data=None):
+	attr = ClassFileAttribute(-1, data)
+	attr.name = name
+	attr.inlined = True
+	return attr
+
+
 
 
 # represents a class file constant

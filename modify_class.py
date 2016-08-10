@@ -56,13 +56,8 @@ def hookMethodTrace(file, method):
 
 	attributes = []
 	if method.exceptionsThrown is not None:
-		attr = classfile.ClassFileAttribute(-1, list(method.exceptionsThrown))
-		attr.name = 'Exceptions'
-		attr.inlined = True
-		attributes.append(attr)
-	codeAttr = classfile.ClassFileAttribute(-1, None)
-	codeAttr.name = 'Code'
-	attributes.append(codeAttr)
+		attributes.append(classfile.createAttribute('Exceptions', list(method.exceptionsThrown)))
+	attributes.append(classfile.createAttribute('Code'))
 
 	newmethod = classfile.ClassFileMethod(list(method.accessFlags), -1, -1, attributes)
 	newmethod.codeStructure = codeStructure
@@ -81,7 +76,7 @@ def hookStaticMethodTrace(file, method):
 				'ldc', classfile.createConstant('CONSTANT_String', 'trace -> ' + methodname +' (' + ', '.join(argtypes) + ')'),\
 				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
 			[ typeToBytecodeType(argtypes[i]) + 'load_' + str(i) for i in range(len(argtypes)) ] +\
-			['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
+			['invokestatic', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
 			['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
 				'ldc', classfile.createConstant('CONSTANT_String', 'trace <- ' + methodname +' (' + ', '.join(argtypes) + ')'),\
 				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
@@ -99,13 +94,8 @@ def hookStaticMethodTrace(file, method):
 
 	attributes = []
 	if method.exceptionsThrown is not None:
-		attr = classfile.ClassFileAttribute(-1, list(method.exceptionsThrown))
-		attr.name = 'Exceptions'
-		attr.inlined = True
-		attributes.append(attr)
-	codeAttr = classfile.ClassFileAttribute(-1, None)
-	codeAttr.name = 'Code'
-	attributes.append(codeAttr)
+		attributes.append(classfile.createAttribute('Exceptions', list(method.exceptionsThrown)))
+	attributes.append(classfile.createAttribute('Code'))
 
 	newmethod = classfile.ClassFileMethod(list(method.accessFlags), -1, -1, attributes)
 	newmethod.codeStructure = codeStructure

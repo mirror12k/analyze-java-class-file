@@ -160,6 +160,7 @@ def main(*args):
 	if len(args) == 0:
 		print("argument required")
 	else:
+		loader = classloader.ClassFileLoader()
 		opts = {}
 		i = 0
 		while i < len(args):
@@ -190,15 +191,10 @@ def main(*args):
 				opts['filter_method_descriptor'] = args[i+1]
 				i += 1
 			elif arg == '--class_loader' or arg == '-cl':
-				opts['class_loader'] = classloader.ClassFileLoader(args[i+1])
+				loader.setFilepath(args[i+1])
 				i += 1
 			else:
-				if 'class_loader' in opts:
-					cf = opts['class_loader'].loadClassByName(arg)
-				else:
-					cf = classfile.openFile(arg)
-					cf.linkClassFile()
-					cf.inlineClassFile()
+				cf = loader.loadClass(arg)
 				rebuilder = AbstractClassRebuilder(cf, **opts)
 				print (rebuilder.stringClass())
 			i += 1
