@@ -30,63 +30,76 @@ def printprompt(*args):
 def dropConstants(file):
 	file.constants = []
 
-def hookMethodTrace(file, method):
+def hookMethodTrace(file, method, printargs=False):
 	methodname = method.name
 	method.name = methodname + '__traced'
 
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
 
-	codePrefix = [
-		'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
-		'new', classfile.createConstant('CONSTANT_Class', 'java/lang/StringBuilder'),
-		'dup',
-		'invokespecial', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', '<init>', '()V'),
-		'ldc', classfile.createConstant('CONSTANT_String', '[entr] ' + methodname +' (' + ', '.join(argtypes) + ') : (this: '),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-		'aload_0',
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/Object;)Ljava/lang/StringBuilder;'),
-	] +\
-	sum( ([
-		'ldc', classfile.createConstant('CONSTANT_String', ', arg'+str(i)+': '),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-		typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '('+\
-				javaTypeToBytecodePrimitiveType(argtypes[i])+')Ljava/lang/StringBuilder;'),
-	] for i in range(len(argtypes))), []) +\
-	[
-		'ldc', classfile.createConstant('CONSTANT_String', ')'),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'toString', '()Ljava/lang/String;'),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
-	]
-	codeCallBody = [ 'aload_0' ] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] + [
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor),
-	]
-	if rettype == 'void':
-		codeSuffix = [
+	if printargs:
+		# trace inject with argument printing
+		codePrefix = [
 			'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
-			'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + methodname +' (' + ', '.join(argtypes) + ') : void'),
-			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
-		]
-	else:
-		codeSuffix = [
-			'dup',
 			'new', classfile.createConstant('CONSTANT_Class', 'java/lang/StringBuilder'),
 			'dup',
 			'invokespecial', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', '<init>', '()V'),
-			'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + methodname +' (' + ', '.join(argtypes) + ') : '),
+			'ldc', classfile.createConstant('CONSTANT_String', '[entr] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ') : (this: '),
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-			'swap',
+			'aload_0',
+			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/Object;)Ljava/lang/StringBuilder;'),
+		] +\
+		sum( ([
+			'ldc', classfile.createConstant('CONSTANT_String', ', arg'+str(i)+': '),
+			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
+			typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1),
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '('+\
-					javaTypeToBytecodePrimitiveType(rettype)+')Ljava/lang/StringBuilder;'),
+					javaTypeToBytecodePrimitiveType(argtypes[i])+')Ljava/lang/StringBuilder;'),
+		] for i in range(len(argtypes))), []) +\
+		[
+			'ldc', classfile.createConstant('CONSTANT_String', ')'),
+			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'toString', '()Ljava/lang/String;'),
-			'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
-			'swap',
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
 		]
-	codeReturn = [ typeToBytecodeType(rettype) + 'return' ]
+		codeCallBody = [ 'aload_0' ] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] + [
+			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor),
+		]
+		if rettype == 'void':
+			codeSuffix = [
+				'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
+				'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ') : void'),
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
+			]
+		else:
+			codeSuffix = [
+				'dup',
+				'new', classfile.createConstant('CONSTANT_Class', 'java/lang/StringBuilder'),
+				'dup',
+				'invokespecial', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', '<init>', '()V'),
+				'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ') : '),
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
+				'swap',
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '('+\
+						javaTypeToBytecodePrimitiveType(rettype)+')Ljava/lang/StringBuilder;'),
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'toString', '()Ljava/lang/String;'),
+				'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
+				'swap',
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
+			]
+		codeReturn = [ typeToBytecodeType(rettype) + 'return' ]
 
-	code =  codePrefix + codeCallBody + codeSuffix + codeReturn
+		code =  codePrefix + codeCallBody + codeSuffix + codeReturn
+	else:
+		# trace inject without argument printing
+		code = ['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+					'ldc', classfile.createConstant('CONSTANT_String', '[entr] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ')'),\
+					'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+				['aload_0'] + [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i+1) for i in range(len(argtypes)) ] +\
+				['invokevirtual', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
+				['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+					'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ')'),\
+					'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+				[typeToBytecodeType(rettype) + 'return']
 	
 	codeStructure = {}
 	codeStructure['code'] = code
@@ -111,63 +124,75 @@ def hookMethodTrace(file, method):
 
 	file.methods.append(newmethod)
 
-def hookStaticMethodTrace(file, method):
+def hookStaticMethodTrace(file, method, printargs=False):
 	methodname = method.name
 	method.name = methodname + '__traced'
 
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
 
-	codePrefix = [
-		'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
-		'new', classfile.createConstant('CONSTANT_Class', 'java/lang/StringBuilder'),
-		'dup',
-		'invokespecial', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', '<init>', '()V'),
-		'ldc', classfile.createConstant('CONSTANT_String', '[entr] ' + methodname +' (' + ', '.join(argtypes) + ') : ('),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-	] +\
-	sum( ([
-		'ldc', classfile.createConstant('CONSTANT_String', (', ' if i > 0 else '')+'arg'+str(i)+': '),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-		typeToBytecodeType(argtypes[i]) + 'load_' + str(i),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '('+\
-				javaTypeToBytecodePrimitiveType(argtypes[i])+')Ljava/lang/StringBuilder;'),
-	] for i in range(len(argtypes))), []) +\
-	[
-		'ldc', classfile.createConstant('CONSTANT_String', ')'),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'toString', '()Ljava/lang/String;'),
-		'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
-	]
-
-	codeCallBody = [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i) for i in range(len(argtypes)) ] + [
-		'invokestatic', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor),
-	]
-	if rettype == 'void':
-		codeSuffix = [
+	if printargs:
+		# trace inject with argument printing
+		codePrefix = [
 			'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
-			'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + methodname +' (' + ', '.join(argtypes) + ') : void'),
-			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
-		]
-	else:
-		codeSuffix = [
-			'dup',
 			'new', classfile.createConstant('CONSTANT_Class', 'java/lang/StringBuilder'),
 			'dup',
 			'invokespecial', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', '<init>', '()V'),
-			'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + methodname +' (' + ', '.join(argtypes) + ') : '),
+			'ldc', classfile.createConstant('CONSTANT_String', '[entr] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ') : ('),
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
-			'swap',
+		] +\
+		sum( ([
+			'ldc', classfile.createConstant('CONSTANT_String', (', ' if i > 0 else '')+'arg'+str(i)+': '),
+			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
+			typeToBytecodeType(argtypes[i]) + 'load_' + str(i),
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '('+\
-					javaTypeToBytecodePrimitiveType(rettype)+')Ljava/lang/StringBuilder;'),
+					javaTypeToBytecodePrimitiveType(argtypes[i])+')Ljava/lang/StringBuilder;'),
+		] for i in range(len(argtypes))), []) +\
+		[
+			'ldc', classfile.createConstant('CONSTANT_String', ')'),
+			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'toString', '()Ljava/lang/String;'),
-			'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
-			'swap',
 			'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
 		]
-	codeReturn = [ typeToBytecodeType(rettype) + 'return' ]
 
-	code =  codePrefix + codeCallBody + codeSuffix + codeReturn
-	# print (code)
+		codeCallBody = [ typeToBytecodeType(argtypes[i]) + 'load_' + str(i) for i in range(len(argtypes)) ] + [
+			'invokestatic', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor),
+		]
+		if rettype == 'void':
+			codeSuffix = [
+				'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
+				'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ') : void'),
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
+			]
+		else:
+			codeSuffix = [
+				'dup',
+				'new', classfile.createConstant('CONSTANT_Class', 'java/lang/StringBuilder'),
+				'dup',
+				'invokespecial', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', '<init>', '()V'),
+				'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ') : '),
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '(Ljava/lang/String;)Ljava/lang/StringBuilder;'),
+				'swap',
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'append', '('+\
+						javaTypeToBytecodePrimitiveType(rettype)+')Ljava/lang/StringBuilder;'),
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/lang/StringBuilder', 'toString', '()Ljava/lang/String;'),
+				'getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),
+				'swap',
+				'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V'),
+			]
+		codeReturn = [ typeToBytecodeType(rettype) + 'return' ]
+
+		code =  codePrefix + codeCallBody + codeSuffix + codeReturn
+	else:
+		# trace inject without argument printing
+		code = ['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+					'ldc', classfile.createConstant('CONSTANT_String', '[entr] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ')'),\
+					'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+				[ typeToBytecodeType(argtypes[i]) + 'load_' + str(i) for i in range(len(argtypes)) ] +\
+				['invokestatic', classfile.createConstant('CONSTANT_Methodref', file.this_class, method.name, method.descriptor)] +\
+				['getstatic', classfile.createConstant('CONSTANT_Fieldref', 'java/lang/System', 'out', 'Ljava/io/PrintStream;'),\
+					'ldc', classfile.createConstant('CONSTANT_String', '[return] ' + classNameToCode(file.this_class) + '.' + methodname +' (' + ', '.join(argtypes) + ')'),\
+					'invokevirtual', classfile.createConstant('CONSTANT_Methodref', 'java/io/PrintStream', 'println', '(Ljava/lang/String;)V')] +\
+				[typeToBytecodeType(rettype) + 'return']
 	
 	codeStructure = {}
 	codeStructure['code'] = code
@@ -339,6 +364,11 @@ def main(*args):
 		loader.storeClass(recipientClass)
 
 	elif command == 'trace_method':
+		printargs = False
+		if len(args) > 0 and args[0] == '-p':
+			printargs = True
+			args = args[1:]
+
 		if len(args) < 2:
 			raise Exception('usage: trace_method <classpath> <method name> [method descriptor]')
 		elif len(args) == 2:
@@ -366,9 +396,9 @@ def main(*args):
 			if (not method.isAbstract()) and (not method.isSpecial()):
 				printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
 				if method.isStatic():
-					hookStaticMethodTrace(recipientClass, method)
+					hookStaticMethodTrace(recipientClass, method, printargs=printargs)
 				else:
-					hookMethodTrace(recipientClass, method)
+					hookMethodTrace(recipientClass, method, printargs=printargs)
 			else:
 				printwarning('skipping method [' + method.name + ' ' + method.descriptor + ']')
 
