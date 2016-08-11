@@ -55,6 +55,28 @@ def classNameToPackageCode(classname):
 	else:
 		return code[:code.rfind('.')]
 
+codeTypeToLetter = {
+	# 'void' : 'V',
+
+	'int' : 'I',
+	'long' : 'J',
+	'short' : 'S',
+	'byte' : 'B',
+	'char' : 'C',
+	'float' : 'F',
+	'double' : 'D',
+	'boolean' : 'Z',
+
+	# 'reference' : 'a',
+}
+
+def javaTypeToBytecodePrimitiveType(typestr):
+	if typestr in codeTypeToLetter:
+		return codeTypeToLetter[typestr]
+	else:
+		return 'Ljava/lang/Object;'
+		# return 'L'+typestr.replace('.','/')+';'
+
 
 
 # safely converts a class constant to the java class name
