@@ -1,9 +1,82 @@
 
+package hooklib;
+
 import java.util.ArrayList;
 
-public class HookService {
-	private static ArrayList<HookService.GeneralValue> argstack;
 
+public class HookService {
+	private static ArrayList<HookService.GeneralValue> argstack = new ArrayList<HookService.GeneralValue>();
+
+
+	public static String stringArgs() {
+		int i = 0;
+		String result = "";
+		for (GeneralValue arg : HookService.argstack) {
+			if (i != 0) {
+				result += ", ";
+			}
+			result += "arg" + Integer.toString(i) + ": " + arg;
+			i++;
+		}
+		return result;
+	}
+	public static String stringReturn() {
+		if (argstack.size() == 0) {
+			return "void";
+		} else {
+			return "" + argstack.remove(0);
+		}
+	}
+
+	public static void traceDynamicMethodCall(String methodname, Object thisObj) {
+		System.out.println("[entr] " + methodname + " : (this: " + thisObj.getClass().getName() + "#" + Integer.toHexString(thisObj.hashCode()) +
+				", "+ stringArgs() + ")");
+		argstack.clear();
+	}
+
+	public static void traceStaticMethodCall(String methodname) {
+		System.out.println("[entr] " + methodname + " : (" + stringArgs() + ")");
+		argstack.clear();
+	}
+
+	public static void traceMethodReturn(String methodname) {
+		System.out.println("[return] " + methodname + " : " + stringReturn());
+		argstack.clear();
+	}
+
+	public static void main(String[] args) {
+		pushArg(15);
+		pushArg("hello world!");
+		pushArg(0.025);
+
+		System.out.println(stringArgs());
+	}
+
+
+	public static void pushArg(boolean arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(char arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(byte arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(short arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(int arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(long arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(float arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
+	public static void pushArg(double arg) {
+		argstack.add(new HookService.GeneralValue(arg));
+	}
 	public static void pushArg(java.lang.Object arg) {
 		argstack.add(new HookService.GeneralValue(arg));
 	}
@@ -22,6 +95,7 @@ public class HookService {
 
 	public static class GeneralValue {
 		public HookService.GeneralValueType type;
+
 		public boolean val_boolean;
 		public char val_char;
 		public byte val_byte;
@@ -88,7 +162,12 @@ public class HookService {
 			case VALUE_TYPE_DOUBLE:
 				return java.lang.Double.toString(this.val_double);
 			case VALUE_TYPE_OBJECT:
-				return this.val_object.toString();
+				if (this.val_object == null) {
+					return "null";
+				} else {
+					return this.val_object.getClass().getName() + "#" + Integer.toHexString(this.val_object.hashCode());
+					// return this.val_object.toString();
+				}
 			default:
 				return "**UNKNOWN**";
 			}
