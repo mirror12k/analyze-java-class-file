@@ -1,14 +1,17 @@
 
 
 
+import shutil
+
 import classfile
 from java_code_tools import *
 
 
 class ClassFileLoader(object):
-	def __init__(self, filepath='.'):
+	def __init__(self, filepath='.', backupOnWrite=True):
 		self.filepath = filepath + '/'
 		self.filecache = {}
+		self.backupOnWrite = backupOnWrite
 	def setFilepath(self, filepath):
 		self.filepath = filepath + '/'
 	def verifyClassname(self, classname, file):
@@ -40,6 +43,10 @@ class ClassFileLoader(object):
 		else:
 			return self.loadClassByName(classpath)
 	def storeClass(self, file):
+		if self.backupOnWrite:
+			classname = classNameToCode(file.this_class)
+			filepath = self.filecache[classname]['filepath']
+			shutil.move(filepath, filepath+'.bak')
 		file.uninlineClassFile()
 		file.unlinkClassFile()
 		file.toFile()
