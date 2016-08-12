@@ -2,10 +2,16 @@
 package hooklib;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Scanner;
+
 
 
 public class HookService {
 	private static ArrayList<HookService.GeneralValue> argstack = new ArrayList<HookService.GeneralValue>();
+
+	private static HashMap<String, HookService.HookBreakpoint> callBreakpoints = new HashMap<String, HookService.HookBreakpoint>();
+	private static HashMap<String, HookService.HookBreakpoint> callExactBreakpoints = new HashMap<String, HookService.HookBreakpoint>();
 
 
 	public static String stringArgs() {
@@ -31,11 +37,25 @@ public class HookService {
 	public static void traceDynamicMethodCall(String methodname, Object thisObj) {
 		System.out.println("[entr] " + methodname + " : (this: " + thisObj.getClass().getName() + "#" + Integer.toHexString(thisObj.hashCode()) +
 				", "+ stringArgs() + ")");
+
+		System.out.println("debug: " + methodname.substring(0, methodname.indexOf(" (")));
+		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
+			startBreakpoint(methodname);
+		} else if (callExactBreakpoints.get(methodname) != null) {
+			startBreakpoint(methodname);
+		}
 		argstack.clear();
 	}
 
 	public static void traceStaticMethodCall(String methodname) {
 		System.out.println("[entr] " + methodname + " : (" + stringArgs() + ")");
+
+		System.out.println("debug: " + methodname.substring(0, methodname.indexOf(" (")));
+		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
+			startBreakpoint(methodname);
+		} else if (callExactBreakpoints.get(methodname) != null) {
+			startBreakpoint(methodname);
+		}
 		argstack.clear();
 	}
 
@@ -43,6 +63,31 @@ public class HookService {
 		System.out.println("[return] " + methodname + " : " + stringReturn());
 		argstack.clear();
 	}
+
+	public static void startBreakpoint(String methodname) {
+		System.out.println("hooklib breakpoint at " + methodname);
+		startConsole();
+	}
+
+	public static void startConsole() {
+		System.out.print("\n");
+
+		Scanner input = new Scanner(System.in);
+
+		Boolean readingCommands = true;
+		while (readingCommands) {
+			System.out.print("> ");
+			String line = input.nextLine();
+
+			if (line.equals("c")) {
+				readingCommands = false;
+				System.out.println("continuing");
+			} else {
+				System.out.println("unknown command");
+			}
+		}
+	}
+
 
 	public static void main(String[] args) {
 		pushArg(15);
@@ -172,5 +217,10 @@ public class HookService {
 				return "**UNKNOWN**";
 			}
 		}
+	}
+
+
+	public class HookBreakpoint {
+
 	}
 }
