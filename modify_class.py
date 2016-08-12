@@ -365,8 +365,12 @@ def main(*args):
 
 	elif command == 'trace_method':
 		printargs = False
-		if len(args) > 0 and args[0] == '-p':
-			printargs = True
+		ignore_toString = True
+		if len(args) > 0 and (args[0] == '-p' or args[0] == '-s'):
+			if args[0] == '-p':
+				printargs = True
+			elif args[0] == '-S':
+				ignore_toString = False
 			args = args[1:]
 
 		if len(args) < 2:
@@ -394,11 +398,15 @@ def main(*args):
 		printinfo('hooking method(s)')
 		for method in hookedMethods:
 			if (not method.isAbstract()) and (not method.isSpecial()):
-				printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
-				if method.isStatic():
-					hookStaticMethodTrace(recipientClass, method, printargs=printargs)
+				if ignore_toString and method.name == 'toString' and method.descriptor == '()Ljava/lang/String;':
+					printwarning('explicitly skipping toString method: [' + method.name + ' ' + method.descriptor + ']')
+					printinfo('(use -S option to disable this functionality)')
 				else:
-					hookMethodTrace(recipientClass, method, printargs=printargs)
+					printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
+					if method.isStatic():
+						hookStaticMethodTrace(recipientClass, method, printargs=printargs)
+					else:
+						hookMethodTrace(recipientClass, method, printargs=printargs)
 			else:
 				printwarning('skipping method [' + method.name + ' ' + method.descriptor + ']')
 
