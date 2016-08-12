@@ -38,7 +38,6 @@ public class HookService {
 		System.out.println("[entr] " + methodname + " : (this: " + thisObj.getClass().getName() + "#" + Integer.toHexString(thisObj.hashCode()) +
 				", "+ stringArgs() + ")");
 
-		System.out.println("debug: " + methodname.substring(0, methodname.indexOf(" (")));
 		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
 			startBreakpoint(methodname);
 		} else if (callExactBreakpoints.get(methodname) != null) {
@@ -50,7 +49,6 @@ public class HookService {
 	public static void traceStaticMethodCall(String methodname) {
 		System.out.println("[entr] " + methodname + " : (" + stringArgs() + ")");
 
-		System.out.println("debug: " + methodname.substring(0, methodname.indexOf(" (")));
 		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
 			startBreakpoint(methodname);
 		} else if (callExactBreakpoints.get(methodname) != null) {
@@ -82,6 +80,34 @@ public class HookService {
 			if (line.equals("c")) {
 				readingCommands = false;
 				System.out.println("continuing");
+
+			} else if (line.startsWith("b ")) {
+				String breakTarget = line.substring("b ".length());
+				if (breakTarget.indexOf(" (") == -1) {
+					callBreakpoints.put(breakTarget, new HookBreakpoint());
+				} else {
+					callExactBreakpoints.put(breakTarget, new HookBreakpoint());
+				}
+				System.out.println("breakpoint created for [" + breakTarget + "]");
+
+			} else if (line.startsWith("br ")) {
+				String breakTarget = line.substring("br ".length());
+				if (breakTarget.indexOf(" (") == -1) {
+					callBreakpoints.remove(breakTarget);
+				} else {
+					callExactBreakpoints.remove(breakTarget);
+				}
+				System.out.println("breakpoint removed for [" + breakTarget + "]");
+
+			} else if (line.equals("l b")) {
+				System.out.println("current breakpoints:");
+				for (String key : callBreakpoints.keySet()) {
+					System.out.println("\t"+key);
+				}
+				for (String key : callExactBreakpoints.keySet()) {
+					System.out.println("\t"+key);
+				}
+
 			} else {
 				System.out.println("unknown command");
 			}
@@ -220,7 +246,7 @@ public class HookService {
 	}
 
 
-	public class HookBreakpoint {
+	public static class HookBreakpoint {
 
 	}
 }
