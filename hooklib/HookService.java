@@ -30,7 +30,7 @@ public class HookService {
 		if (argstack.size() == 0) {
 			return "void";
 		} else {
-			return "" + argstack.remove(0);
+			return "" + argstack.get(0);
 		}
 	}
 
@@ -38,37 +38,42 @@ public class HookService {
 		System.out.println("[entr] " + methodname + " : (this: " + thisObj.getClass().getName() + "#" + Integer.toHexString(thisObj.hashCode()) +
 				", "+ stringArgs() + ")");
 
+		ArrayList<HookService.GeneralValue> oldargstack = argstack;
+		argstack = new ArrayList<HookService.GeneralValue>();
+
 		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
-			startBreakpoint(methodname);
+			startBreakpoint(new HookBreakpointInfo(methodname, thisObj, oldargstack, callBreakpoints.get(methodname.substring(0, methodname.indexOf(" (")))));
 		} else if (callExactBreakpoints.get(methodname) != null) {
-			startBreakpoint(methodname);
+			startBreakpoint(new HookBreakpointInfo(methodname, thisObj, oldargstack, callExactBreakpoints.get(methodname)));
 		}
-		argstack.clear();
 	}
 
 	public static void traceStaticMethodCall(String methodname) {
 		System.out.println("[entr] " + methodname + " : (" + stringArgs() + ")");
 
+		ArrayList<HookService.GeneralValue> oldargstack = argstack;
+		argstack = new ArrayList<HookService.GeneralValue>();
+
 		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
-			startBreakpoint(methodname);
+			startBreakpoint(new HookBreakpointInfo(methodname, null, oldargstack, callBreakpoints.get(methodname.substring(0, methodname.indexOf(" (")))));
 		} else if (callExactBreakpoints.get(methodname) != null) {
-			startBreakpoint(methodname);
+			startBreakpoint(new HookBreakpointInfo(methodname, null, oldargstack, callExactBreakpoints.get(methodname)));
 		}
-		argstack.clear();
 	}
 
 	public static void traceMethodReturn(String methodname) {
 		System.out.println("[return] " + methodname + " : " + stringReturn());
-		argstack.clear();
+		argstack = new ArrayList<HookService.GeneralValue>();
 	}
 
-	public static void startBreakpoint(String methodname) {
-		System.out.println("hooklib breakpoint at " + methodname);
-		startConsole();
+
+
+	public static void startBreakpoint(HookBreakpointInfo info) {
+		System.out.println("\nhooklib breakpoint at " + info.methodname);
+		startConsole(info);
 	}
 
-	public static void startConsole() {
-		System.out.print("\n");
+	public static void startConsole(HookBreakpointInfo info) {
 
 		Scanner input = new Scanner(System.in);
 
@@ -77,42 +82,61 @@ public class HookService {
 			System.out.print("> ");
 			String line = input.nextLine();
 
-			if (line.equals("c")) {
-				readingCommands = false;
-				System.out.println("continuing");
+			try {
+				if (line.equals("c")) {
+					readingCommands = false;
+					System.out.println("continuing");
 
-			} else if (line.startsWith("b ")) {
-				String breakTarget = line.substring("b ".length());
-				if (breakTarget.indexOf(" (") == -1) {
-					callBreakpoints.put(breakTarget, new HookBreakpoint());
+				} else if (line.startsWith("b ")) {
+					String breakTarget = line.substring("b ".length());
+					if (breakTarget.indexOf(" (") == -1) {
+						callBreakpoints.put(breakTarget, new HookBreakpoint());
+					} else {
+						callExactBreakpoints.put(breakTarget, new HookBreakpoint());
+					}
+					System.out.println("breakpoint created for [" + breakTarget + "]");
+
+				} else if (line.startsWith("br ")) {
+					String breakTarget = line.substring("br ".length());
+					if (breakTarget.indexOf(" (") == -1) {
+						callBreakpoints.remove(breakTarget);
+					} else {
+						callExactBreakpoints.remove(breakTarget);
+					}
+					System.out.println("breakpoint removed for [" + breakTarget + "]");
+
+				} else if (line.equals("l b")) {
+					System.out.println("current breakpoints:");
+					for (String key : callBreakpoints.keySet()) {
+						System.out.println("\t"+key);
+					}
+					for (String key : callExactBreakpoints.keySet()) {
+						System.out.println("\t"+key);
+					}
+
+				} else if (line.startsWith("p ")) {
+					String argument = line.substring("p ".length());
+					if (argument.startsWith("this")) {
+						argument = argument.substring("this".length());
+						System.out.println("\tthis = " + info.thisarg);
+					} else if (argument.startsWith("arg")) {
+						argument = argument.substring("arg".length());
+						int argnum = Integer.parseInt(argument);
+						System.out.println("\targ"+argnum+" = " + info.argstack.get(argnum));
+					} else {
+						System.out.println("invalid argument for p: " + argument);
+					}
+
 				} else {
-					callExactBreakpoints.put(breakTarget, new HookBreakpoint());
+					System.out.println("unknown command");
 				}
-				System.out.println("breakpoint created for [" + breakTarget + "]");
-
-			} else if (line.startsWith("br ")) {
-				String breakTarget = line.substring("br ".length());
-				if (breakTarget.indexOf(" (") == -1) {
-					callBreakpoints.remove(breakTarget);
-				} else {
-					callExactBreakpoints.remove(breakTarget);
-				}
-				System.out.println("breakpoint removed for [" + breakTarget + "]");
-
-			} else if (line.equals("l b")) {
-				System.out.println("current breakpoints:");
-				for (String key : callBreakpoints.keySet()) {
-					System.out.println("\t"+key);
-				}
-				for (String key : callExactBreakpoints.keySet()) {
-					System.out.println("\t"+key);
-				}
-
-			} else {
-				System.out.println("unknown command");
+			} catch (Exception e) {
+				System.out.println("exception occured handling input: " + e);
+				e.printStackTrace();
 			}
 		}
 	}
+
 
 
 	public static void main(String[] args) {
@@ -248,5 +272,20 @@ public class HookService {
 
 	public static class HookBreakpoint {
 
+	}
+
+	public static class HookBreakpointInfo {
+		public String methodname;
+
+		public Object thisarg;
+		public ArrayList<HookService.GeneralValue> argstack;
+		public HookBreakpoint breakpoint;
+
+		public HookBreakpointInfo(String methodname, Object thisarg, ArrayList<HookService.GeneralValue> argstack, HookBreakpoint breakpoint) {
+			this.methodname = methodname;
+			this.thisarg = thisarg;
+			this.argstack = argstack;
+			this.breakpoint = breakpoint;
+		}
 	}
 }

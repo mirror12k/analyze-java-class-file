@@ -23,7 +23,7 @@ public class LaunchService {
 			Object[] invokeArgs = new Object[1];
 			invokeArgs[0] = mainArgs;
 
-			hooklib.HookService.startConsole();
+			hooklib.HookService.startConsole(null);
 			mainMethod.invoke(null, invokeArgs);
 		}
 	}
