@@ -87,6 +87,17 @@ public class HookService {
 					readingCommands = false;
 					System.out.println("continuing");
 
+				} else if (line.equals("q") || line.equals("exit")) {
+					readingCommands = false;
+					System.out.println("exiting application");
+					System.exit(1);
+
+				} else if (line.equals("st")) {
+					System.out.println("stacktrace:");
+					for (StackTraceElement el : Thread.currentThread().getStackTrace()) {
+						System.out.println("\t" +el);
+					}
+
 				} else if (line.startsWith("b ")) {
 					String breakTarget = line.substring("b ".length());
 					if (breakTarget.indexOf(" (") == -1) {
