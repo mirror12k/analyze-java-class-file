@@ -251,6 +251,7 @@ def main(*args):
 				i += 1
 			else:
 				cf = loader.loadClass(arg)
+				cf.linkBytecode()
 				chart = JavaClassChart(cf, **opts)
 				if opts['filter_empty'] == False or chart.hasSomething():
 					print (chart)

@@ -925,7 +925,7 @@ class ClassBytecode(object):
 					offset += 4
 				elif instruction == 'wide':
 					self.assembly.append('wide')
-					c2 = ord(bytecode[offset + 1])
+					c2 = bytecode[offset + 1]
 					if c2 == 0x84: # iinc
 						self.assembly.append('iinc')
 						self.assembly.append(struct.unpack('>H', bytecode[offset+2:offset+4])[0])

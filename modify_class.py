@@ -448,7 +448,7 @@ def main(*args):
 		printargs = False
 		useHooklib = False
 		ignore_toString = True
-		if len(args) > 0 and (args[0] == '-p' or args[0] == '-s'):
+		if len(args) > 0 and (args[0] == '-p' or args[0] == '-s' or args[0] == '-hl'):
 			if args[0] == '-p':
 				printargs = True
 			elif args[0] == '-hl':

@@ -31,6 +31,7 @@ class AbstractClassRebuilder(object):
 			'filter_field_references' : opts.get('filter_field_references', False),
 			# filters method referencing assembly
 			'filter_method_references' : opts.get('filter_method_references', False),
+			'filter_new' : opts.get('filter_new', False),
 
 			# shows jump destinations and sources using obvious symbols
 			'mark_jumps' : opts.get('mark_jumps', False),
@@ -136,6 +137,8 @@ class AbstractClassRebuilder(object):
 					assemblyFilter += classbytecode.assemblyFieldReferencingListing
 				if self.opts['filter_method_references']:
 					assemblyFilter += classbytecode.assemblyMethodReferencingListing
+				if self.opts['filter_new']:
+					assemblyFilter += ['new']
 				
 				if len(assemblyFilter) == 0:
 					assemblyFilter = None
@@ -183,6 +186,8 @@ def main(*args):
 				opts['filter_method_references'] = True
 			elif arg == '--filter_critical' or arg == '-fc':
 				opts['filter_critical'] = True
+			elif arg == '--filter_new' or arg == '-fn':
+				opts['filter_new'] = True
 
 			elif arg == '--filter_method_name' or arg == '-mn':
 				opts['filter_method_name'] = args[i+1]
