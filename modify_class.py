@@ -34,7 +34,7 @@ def classMethodToSimpleName(file, method):
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
 	return classNameToCode(file.this_class) + '.' + method.name +' (' + ', '.join(argtypes) + ')'
 
-def hookMethodJavaTrace(file, method):
+def hookMethodHooklibTrace(file, method):
 	argtypes, rettype = methodDescriptorToCode(method.descriptor)
 
 	if method.isStatic():
@@ -446,10 +446,13 @@ def main(*args):
 
 	elif command == 'trace_method':
 		printargs = False
+		useHooklib = False
 		ignore_toString = True
 		if len(args) > 0 and (args[0] == '-p' or args[0] == '-s'):
 			if args[0] == '-p':
 				printargs = True
+			elif args[0] == '-hl':
+				useHooklib = True
 			elif args[0] == '-S':
 				ignore_toString = False
 			args = args[1:]
@@ -484,11 +487,13 @@ def main(*args):
 					printinfo('(use -S option to disable this functionality)')
 				else:
 					printaction('tracing method [' + method.name + ' ' + method.descriptor + '] in recipient class')
-					hookMethodJavaTrace(recipientClass, method)
-					# if method.isStatic():
-					# 	hookStaticMethodTrace(recipientClass, method, printargs=printargs)
-					# else:
-					# 	hookMethodTrace(recipientClass, method, printargs=printargs)
+					if useHooklib:
+						hookMethodHooklibTrace(recipientClass, method)
+					else:
+						if method.isStatic():
+							hookStaticMethodTrace(recipientClass, method, printargs=printargs)
+						else:
+							hookMethodTrace(recipientClass, method, printargs=printargs)
 			else:
 				printwarning('skipping method [' + method.name + ' ' + method.descriptor + ']')
 

@@ -1113,7 +1113,12 @@ class ClassFile(ClassFileObject):
 			data = self.handle.read(2)
 			const.length, = struct.unpack('>H', data)
 			data = self.handle.read(const.length)
-			const.string = data.decode('utf8')
+			try:
+				const.string = data.decode('utf8')
+			except UnicodeDecodeError as e:
+				# because somehow this is possible. dunno how
+				print("exception occured: ", e)
+				const.string = data
 		elif const.tagName == 'CONSTANT_Integer':
 			data = self.handle.read(4)
 			const.value, = struct.unpack('>i', data)
