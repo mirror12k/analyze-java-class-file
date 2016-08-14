@@ -7,6 +7,7 @@ import java.util.Scanner;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Constructor;
 
 
 
@@ -152,6 +153,15 @@ public class HookService {
 					Object obj = value.val_object;
 					Class objclass = obj.getClass();
 					System.out.println("\tclass: " + objclass.getCanonicalName());
+					System.out.println("\tsuper class: " + objclass.getSuperclass().getCanonicalName());
+					System.out.println("\tinterfaces:");
+					for (Class objinterface : objclass.getInterfaces()) {
+						System.out.println("\t\t" + objinterface.getCanonicalName());
+					}
+					System.out.println("\tconstructors:");
+					for (Constructor objconstructor : objclass.getConstructors()) {
+						System.out.println("\t\t" + objconstructor.toGenericString());
+					}
 					System.out.println("\tfields:");
 					for (Field objfield : objclass.getFields()) {
 						System.out.println("\t\t" + objfield.toGenericString());
