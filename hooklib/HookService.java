@@ -17,6 +17,13 @@ public class HookService {
 	private static HashMap<String, HookService.HookBreakpoint> callBreakpoints = new HashMap<String, HookService.HookBreakpoint>();
 	private static HashMap<String, HookService.HookBreakpoint> callExactBreakpoints = new HashMap<String, HookService.HookBreakpoint>();
 
+	private static HashMap<String, HookService.HookBreakpoint> breakpointsBySerial = new HashMap<String, HookService.HookBreakpoint>();
+
+	private static long breakpointSerial = 0;
+
+	public static synchronized long newBreakpointSerial () {
+		return breakpointSerial++;
+	}
 
 	public static String stringArgs() {
 		int i = 0;
@@ -46,9 +53,15 @@ public class HookService {
 		argstack = new ArrayList<HookService.GeneralValue>();
 
 		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
-			startBreakpoint(new HookBreakpointInfo(methodname, thisObj, oldargstack, callBreakpoints.get(methodname.substring(0, methodname.indexOf(" (")))));
+			HookBreakpoint bp = callBreakpoints.get(methodname.substring(0, methodname.indexOf(" (")));
+			if (bp.enabled) {
+				startBreakpoint(new HookBreakpointInfo(methodname, thisObj, oldargstack, bp));
+			}
 		} else if (callExactBreakpoints.get(methodname) != null) {
-			startBreakpoint(new HookBreakpointInfo(methodname, thisObj, oldargstack, callExactBreakpoints.get(methodname)));
+			HookBreakpoint bp = callExactBreakpoints.get(methodname);
+			if (bp.enabled) {
+				startBreakpoint(new HookBreakpointInfo(methodname, thisObj, oldargstack, bp));
+			}
 		}
 	}
 
@@ -59,9 +72,11 @@ public class HookService {
 		argstack = new ArrayList<HookService.GeneralValue>();
 
 		if (callBreakpoints.get(methodname.substring(0, methodname.indexOf(" ("))) != null) {
-			startBreakpoint(new HookBreakpointInfo(methodname, null, oldargstack, callBreakpoints.get(methodname.substring(0, methodname.indexOf(" (")))));
+			HookBreakpoint bp = callBreakpoints.get(methodname.substring(0, methodname.indexOf(" (")));
+			startBreakpoint(new HookBreakpointInfo(methodname, null, oldargstack, bp));
 		} else if (callExactBreakpoints.get(methodname) != null) {
-			startBreakpoint(new HookBreakpointInfo(methodname, null, oldargstack, callExactBreakpoints.get(methodname)));
+			HookBreakpoint bp = callExactBreakpoints.get(methodname);
+			startBreakpoint(new HookBreakpointInfo(methodname, null, oldargstack, bp));
 		}
 	}
 
@@ -104,30 +119,51 @@ public class HookService {
 
 				} else if (line.startsWith("b ")) {
 					String breakTarget = line.substring("b ".length());
+					HookBreakpoint bp = new HookBreakpoint(newBreakpointSerial(), breakTarget);
 					if (breakTarget.indexOf(" (") == -1) {
-						callBreakpoints.put(breakTarget, new HookBreakpoint());
+						callBreakpoints.put(bp.target, bp);
 					} else {
-						callExactBreakpoints.put(breakTarget, new HookBreakpoint());
+						callExactBreakpoints.put(bp.target, bp);
 					}
+					breakpointsBySerial.put(""+bp.serial, bp);
 					System.out.println("breakpoint created for [" + breakTarget + "]");
 
 				} else if (line.startsWith("br ")) {
-					String breakTarget = line.substring("br ".length());
-					if (breakTarget.indexOf(" (") == -1) {
-						callBreakpoints.remove(breakTarget);
+					String argument = line.substring("br ".length());
+
+					HookBreakpoint removeTarget = null;
+					if (argument.charAt(0) <= '9' && argument.charAt(0) >= '0') {
+						removeTarget = breakpointsBySerial.get(argument);
 					} else {
-						callExactBreakpoints.remove(breakTarget);
+						if (argument.indexOf(" (") == -1) {
+							removeTarget = callBreakpoints.get(argument);
+						} else {
+							removeTarget = callExactBreakpoints.get(argument);
+						}
 					}
-					System.out.println("breakpoint removed for [" + breakTarget + "]");
+					if (removeTarget == null) {
+						System.out.println("no breakpoint found for argument '" + argument + "'");
+					} else {
+						breakpointsBySerial.remove(""+removeTarget.serial);
+						if (callBreakpoints.containsKey(removeTarget.target)) {
+							callBreakpoints.remove(removeTarget.target);
+						} else {
+							callExactBreakpoints.remove(removeTarget.target);
+						}
+						System.out.println("breakpoint for [" + removeTarget.target + "] removed");
+					}
 
 				} else if (line.equals("l b")) {
 					System.out.println("current breakpoints:");
-					for (String key : callBreakpoints.keySet()) {
-						System.out.println("\t"+key);
+					for (HookBreakpoint bp : breakpointsBySerial.values()) {
+						System.out.println("\t" + bp.serial + ": " + bp.target);
+						System.out.println("\t\tenabled = " + bp.enabled);
 					}
-					for (String key : callExactBreakpoints.keySet()) {
-						System.out.println("\t"+key);
-					}
+					// for (String key : callExactBreakpoints.keySet()) {
+					// 	HookBreakpoint bp = callExactBreakpoints.get(key);
+					// 	System.out.println("\t" + bp.serial + ": " + key);
+					// 	System.out.println("\t\tenabled = " + bp.enabled);
+					// }
 
 				} else if (line.startsWith("p ")) {
 					String expression = line.substring("i ".length());
@@ -329,7 +365,14 @@ public class HookService {
 
 
 	public static class HookBreakpoint {
+		public Boolean enabled = true;
+		public long serial;
+		public String target;
 
+		public HookBreakpoint(long serial, String target) {
+			this.serial = serial;
+			this.target = target;
+		}
 	}
 
 	public static class HookBreakpointInfo {
