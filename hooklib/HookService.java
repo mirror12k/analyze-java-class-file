@@ -5,6 +5,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Scanner;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
 
 
 public class HookService {
@@ -126,16 +129,36 @@ public class HookService {
 					}
 
 				} else if (line.startsWith("p ")) {
-					String argument = line.substring("p ".length());
-					if (argument.startsWith("this")) {
-						argument = argument.substring("this".length());
-						System.out.println("\tthis = " + info.thisarg);
-					} else if (argument.startsWith("arg")) {
-						argument = argument.substring("arg".length());
-						int argnum = Integer.parseInt(argument);
-						System.out.println("\targ"+argnum+" = " + info.argstack.get(argnum));
+					String expression = line.substring("i ".length());
+
+					GeneralValue value = parseExpression(expression, info);
+					if (value.type == GeneralValueType.VALUE_TYPE_OBJECT) {
+						System.out.println("\t= " + value.val_object);
 					} else {
-						System.out.println("invalid argument for p: " + argument);
+						System.out.println("\t= " + value);
+					}
+
+				} else if (line.startsWith("i ")) {
+					String expression = line.substring("i ".length());
+
+					GeneralValue value = parseExpression(expression, info);
+
+					if (value.type != GeneralValueType.VALUE_TYPE_OBJECT) {
+						throw new Exception("expression value is not an object: " + value);
+					} else if (value.val_object == null) {
+						throw new Exception("expression value is null");
+					}
+
+					Object obj = value.val_object;
+					Class objclass = obj.getClass();
+					System.out.println("\tclass: " + objclass.getCanonicalName());
+					System.out.println("\tfields:");
+					for (Field objfield : objclass.getFields()) {
+						System.out.println("\t\t" + objfield.toGenericString());
+					}
+					System.out.println("\tmethods:");
+					for (Method objmethod : objclass.getMethods()) {
+						System.out.println("\t\t" + objmethod.toGenericString());
 					}
 
 				} else {
@@ -145,6 +168,20 @@ public class HookService {
 				System.out.println("exception occured handling input: " + e);
 				e.printStackTrace();
 			}
+		}
+	}
+
+
+	public static GeneralValue parseExpression(String expression, HookBreakpointInfo info) throws Exception {
+		if (expression.startsWith("this")) {
+			expression = expression.substring("this".length());
+			return new GeneralValue(info.thisarg);
+		} else if (expression.startsWith("arg")) {
+			expression = expression.substring("arg".length());
+			int argnum = Integer.parseInt(expression);
+			return info.argstack.get(argnum);
+		} else {
+			throw new Exception("invalid expression: " + expression);
 		}
 	}
 
