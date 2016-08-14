@@ -1,6 +1,7 @@
 
 package hooklib;
 
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Scanner;
@@ -92,6 +93,31 @@ public class HookService {
 		startConsole(info);
 	}
 
+
+	public static Collection<HookBreakpoint> breakpointsByExpression(String expression) {
+		if (expression.equals("*")) {
+			return breakpointsBySerial.values();
+		} else if (expression.charAt(0) <= '9' && expression.charAt(0) >= '0') {
+			ArrayList<HookBreakpoint> bps = new ArrayList<HookBreakpoint>();
+			if (breakpointsBySerial.containsKey(expression)) {
+				bps.add(breakpointsBySerial.get(expression));
+			}
+			return bps;
+		} else if (expression.indexOf(" (") == -1) {
+			ArrayList<HookBreakpoint> bps = new ArrayList<HookBreakpoint>();
+			if (callBreakpoints.containsKey(expression)) {
+				bps.add(callBreakpoints.get(expression));
+			}
+			return bps;
+		} else {
+			ArrayList<HookBreakpoint> bps = new ArrayList<HookBreakpoint>();
+			if (callExactBreakpoints.containsKey(expression)) {
+				bps.add(callExactBreakpoints.get(expression));
+			}
+			return bps;
+		}
+	}
+
 	public static void startConsole(HookBreakpointInfo info) {
 
 		Scanner input = new Scanner(System.in);
@@ -131,27 +157,36 @@ public class HookService {
 				} else if (line.startsWith("br ")) {
 					String argument = line.substring("br ".length());
 
-					HookBreakpoint removeTarget = null;
-					if (argument.charAt(0) <= '9' && argument.charAt(0) >= '0') {
-						removeTarget = breakpointsBySerial.get(argument);
-					} else {
-						if (argument.indexOf(" (") == -1) {
-							removeTarget = callBreakpoints.get(argument);
-						} else {
-							removeTarget = callExactBreakpoints.get(argument);
-						}
-					}
-					if (removeTarget == null) {
+					// list must be cloned because breakpointsByExpression can return the values() collection of breakpointsBySerial, throwing a concurrent error on remove
+					ArrayList<HookBreakpoint> targets = new ArrayList<HookBreakpoint>(breakpointsByExpression(argument));
+					if (targets.size() == 0) {
 						System.out.println("no breakpoint found for argument '" + argument + "'");
 					} else {
-						breakpointsBySerial.remove(""+removeTarget.serial);
-						if (callBreakpoints.containsKey(removeTarget.target)) {
-							callBreakpoints.remove(removeTarget.target);
-						} else {
-							callExactBreakpoints.remove(removeTarget.target);
+						for (HookBreakpoint removeTarget : targets) {
+							breakpointsBySerial.remove(""+removeTarget.serial);
+							if (callBreakpoints.containsKey(removeTarget.target)) {
+								callBreakpoints.remove(removeTarget.target);
+							} else {
+								callExactBreakpoints.remove(removeTarget.target);
+							}
+							System.out.println("breakpoint #" + removeTarget.serial + " for [" + removeTarget.target + "] removed");
 						}
-						System.out.println("breakpoint for [" + removeTarget.target + "] removed");
 					}
+					// HookBreakpoint removeTarget = null;
+					// if (argument.charAt(0) <= '9' && argument.charAt(0) >= '0') {
+					// 	removeTarget = breakpointsBySerial.get(argument);
+					// } else {
+					// 	if (argument.indexOf(" (") == -1) {
+					// 		removeTarget = callBreakpoints.get(argument);
+					// 	} else {
+					// 		removeTarget = callExactBreakpoints.get(argument);
+					// 	}
+					// }
+					// if (removeTarget == null) {
+					// 	System.out.println("no breakpoint found for argument '" + argument + "'");
+					// } else {
+					// 	System.out.println("breakpoint for [" + removeTarget.target + "] removed");
+					// }
 
 				} else if (line.equals("l b")) {
 					System.out.println("current breakpoints:");
